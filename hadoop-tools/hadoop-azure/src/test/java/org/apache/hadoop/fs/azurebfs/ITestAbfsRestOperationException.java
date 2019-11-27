@@ -107,6 +107,11 @@ public class ITestAbfsRestOperationException extends AbstractAbfsIntegrationTest
       // Expected to fail as
     }
 
+    intercept(Exception.class,
+        ()-> {
+          fs1.getFileStatus(new Path("/"));
+        });
+
     // Number of retries done should be as configured
     Assert.assertTrue(
         "Number of token fetch retries (" + RetryTestTokenProvider.reTryCount

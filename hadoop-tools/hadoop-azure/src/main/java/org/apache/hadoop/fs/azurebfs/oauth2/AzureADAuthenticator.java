@@ -202,6 +202,11 @@ public final class AzureADAuthenticator {
   }
 
   private static AzureADToken getTokenCall(String authEndpoint, String body,
+      Hashtable<String, String> headers, String httpMethod) throws IOException {
+    return getTokenCall(authEndpoint, body, headers, httpMethod, false);
+  }
+
+  private static AzureADToken getTokenCall(String authEndpoint, String body,
       Hashtable<String, String> headers, String httpMethod, boolean isMsi)
       throws IOException {
     AzureADToken token = null;

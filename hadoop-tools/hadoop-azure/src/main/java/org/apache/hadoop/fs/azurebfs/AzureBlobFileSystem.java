@@ -190,7 +190,7 @@ public class AzureBlobFileSystem extends FileSystem {
     performAbfsAuthCheck(FsAction.WRITE, qualifiedPath);
 
     try {
-      OutputStream outputStream = abfsStore.createFile(qualifiedPath, overwrite,
+      OutputStream outputStream = abfsStore.createFile(qualifiedPath, statistics, overwrite,
           permission == null ? FsPermission.getFileDefault() : permission, FsPermission.getUMask(getConf()));
       return new FSDataOutputStream(outputStream, statistics);
     } catch(AzureBlobFileSystemException ex) {
@@ -253,7 +253,7 @@ public class AzureBlobFileSystem extends FileSystem {
     performAbfsAuthCheck(FsAction.WRITE, qualifiedPath);
 
     try {
-      OutputStream outputStream = abfsStore.openFileForWrite(qualifiedPath, false);
+      OutputStream outputStream = abfsStore.openFileForWrite(qualifiedPath, statistics, false);
       return new FSDataOutputStream(outputStream, statistics);
     } catch(AzureBlobFileSystemException ex) {
       checkException(f, ex);

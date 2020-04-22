@@ -38,7 +38,288 @@ To make it part of Apache Hadoop's default classpath, simply make sure that
 
 
 
-## Limitations
+## <a name="authentication"></a> Authentication
+
+Authentication for ABFS is ultimately granted by [Azure Active Directory](https://docs.microsoft.com/en-us/azure/active-directory/develop/authentication-scenarios).
+
+The concepts covered there are beyond the scope of this document to cover;
+developers are expected to have read and understood the concepts therein
+to take advantage of the different authentication mechanisms.
+
+What is covered here, briefly, is how to configure the ABFS client to authenticate
+in different deployment situations.
+
+The ABFS client can be deployed in different ways, with its authentication needs
+driven by them.
+
+1. With the storage account's authentication secret in the configuration:
+"Shared Key".
+1. Using OAuth 2.0 tokens of one form or another.
+1. Deployed in-Azure with the Azure VMs providing OAuth 2.0 tokens to the application,
+ "Managed Instance".
+
+What can be changed is what secrets/credentials are used to authenticate the caller.
+
+The authentication mechanism is set in `fs.azure.account.auth.type` (or the account specific variant),
+and, for the various OAuth options `fs.azure.account.oauth.provider.type`
+
+All secrets can be stored in JCEKS files. These are encrypted and password
+protected —use them or a compatible Hadoop Key Management Store wherever
+possible
+
+### <a name="shared-key-auth"></a> Default: Shared Key
+
+This is the simplest authentication mechanism of account + password.
+
+The account name is inferred from the URL;
+the password, "key", retrieved from the XML/JCECKs configuration files.
+
+```xml
+<property>
+  <name>fs.azure.account.auth.type.abfswales1.dfs.core.windows.net</name>
+  <value>SharedKey</value>
+  <description>
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.key.abfswales1.dfs.core.windows.net</name>
+  <value>ZGlkIHlvdSByZWFsbHkgdGhpbmsgSSB3YXMgZ29pbmcgdG8gcHV0IGEga2V5IGluIGhlcmU/IA==</value>
+  <description>
+  The secret password. Never share these.
+  </description>
+</property>
+```
+
+*Note*: The source of the account key can be changed through a custom key provider;
+one exists to execute a shell script to retrieve it.
+
+### <a name="oauth-client-credentials"></a> OAuth 2.0 Client Credentials
+
+OAuth 2.0 credentials of (client id, client secret, endpoint) are provided in the configuration/JCEKS file.
+
+The specifics of this process is covered
+in [hadoop-azure-datalake](../hadoop-azure-datalake/index.html#Configuring_Credentials_and_FileSystem);
+the key names are slightly different here.
+
+```xml
+<property>
+  <name>fs.azure.account.auth.type</name>
+  <value>OAuth</value>
+  <description>
+  Use OAuth authentication
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth.provider.type</name>
+  <value>org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider</value>
+  <description>
+  Use client credentials
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth2.client.endpoint</name>
+  <value></value>
+  <description>
+  URL of OAuth endpoint
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth2.client.id</name>
+  <value></value>
+  <description>
+  Client ID
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth2.client.secret</name>
+  <value></value>
+  <description>
+  Secret
+  </description>
+</property>
+```
+
+### <a name="oauth-user-and-passwd"></a> OAuth 2.0: Username and Password
+
+An OAuth 2.0 endpoint, username and password are provided in the configuration/JCEKS file.
+
+```xml
+<property>
+  <name>fs.azure.account.auth.type</name>
+  <value>OAuth</value>
+  <description>
+  Use OAuth authentication
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth.provider.type</name>
+  <value>org.apache.hadoop.fs.azurebfs.oauth2.UserPasswordTokenProvider</value>
+  <description>
+  Use user and password
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth2.client.endpoint</name>
+  <value></value>
+  <description>
+  URL of OAuth 2.0 endpoint
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth2.user.name</name>
+  <value></value>
+  <description>
+  username
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth2.user.password</name>
+  <value></value>
+  <description>
+  password for account
+  </description>
+</property>
+```
+
+### <a name="oauth-refresh-token"></a> OAuth 2.0: Refresh Token
+
+With an existing Oauth 2.0 token, make a request of the Active Directory endpoint
+`https://login.microsoftonline.com/Common/oauth2/token` for this token to be refreshed.
+
+```xml
+<property>
+  <name>fs.azure.account.auth.type</name>
+  <value>OAuth</value>
+  <description>
+  Use OAuth 2.0 authentication
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth.provider.type</name>
+  <value>org.apache.hadoop.fs.azurebfs.oauth2.RefreshTokenBasedTokenProvider</value>
+  <description>
+  Use the Refresh Token Provider
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth2.refresh.token</name>
+  <value></value>
+  <description>
+  Refresh token
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth2.client.id</name>
+  <value></value>
+  <description>
+  Optional Client ID
+  </description>
+</property>
+```
+
+### <a name="managed-identity"></a> Azure Managed Identity
+
+[Azure Managed Identities](https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview), formerly "Managed Service Identities".
+
+OAuth 2.0 tokens are issued by a special endpoint only accessible
+from the executing VM (`http://169.254.169.254/metadata/identity/oauth2/token`).
+The issued credentials can be used to authenticate.
+
+The Azure Portal/CLI is used to create the service identity.
+
+```xml
+<property>
+  <name>fs.azure.account.auth.type</name>
+  <value>OAuth</value>
+  <description>
+  Use OAuth authentication
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth.provider.type</name>
+  <value>org.apache.hadoop.fs.azurebfs.oauth2.MsiTokenProvider</value>
+  <description>
+  Use MSI for issuing OAuth tokens
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth2.msi.tenant</name>
+  <value></value>
+  <description>
+  Optional MSI Tenant ID
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth2.client.id</name>
+  <value></value>
+  <description>
+  Optional Client ID
+  </description>
+</property>
+```
+
+### Custom OAuth 2.0 Token Provider
+
+A Custom OAuth 2.0 token provider supplies the ABFS connector with an OAuth 2.0
+token when its `getAccessToken()` method is invoked.
+
+```xml
+<property>
+  <name>fs.azure.account.auth.type</name>
+  <value>Custom</value>
+  <description>
+  Custom Authentication
+  </description>
+</property>
+<property>
+  <name>fs.azure.account.oauth.provider.type</name>
+  <value></value>
+  <description>
+  classname of Custom Authentication Provider
+  </description>
+</property>
+```
+
+The declared class must implement `org.apache.hadoop.fs.azurebfs.extensions.CustomTokenProviderAdaptee`
+and optionally `org.apache.hadoop.fs.azurebfs.extensions.BoundDTExtension`.
+
+The declared class also holds responsibility to implement retry logic while fetching access tokens.
+
+## <a name="technical"></a> Technical notes
+
+### <a name="proxy"></a> Proxy setup
+
+The connector uses the JVM proxy settings to control its proxy setup.
+
+See The [Oracle Java documentation](https://docs.oracle.com/javase/8/docs/technotes/guides/net/proxies.html) for the options to set.
+
+As the connector uses HTTPS by default, the `https.proxyHost` and `https.proxyPort`
+options are those which must be configured.
+
+In MapReduce jobs, including distcp, the proxy options must be set in both the
+`mapreduce.map.java.opts` and `mapreduce.reduce.java.opts`.
+
+```bash
+# this variable is only here to avoid typing the same values twice.
+# It's name is not important.
+export DISTCP_PROXY_OPTS="-Dhttps.proxyHost=web-proxy.example.com -Dhttps.proxyPort=80"
+
+hadoop distcp \
+  -D mapreduce.map.java.opts="$DISTCP_PROXY_OPTS" \
+  -D mapreduce.reduce.java.opts="$DISTCP_PROXY_OPTS" \
+  -update -skipcrccheck -numListstatusThreads 40 \
+  hdfs://namenode:8020/users/alice abfs://backups@account.dfs.core.windows.net/users/alice
+```
+
+Without these settings, even though access to ADLS may work from the command line,
+`distcp` access can fail with network errors.
+
+### <a name="security"></a> Security
+
+As with other object stores, login secrets are valuable pieces of information.
+Organizations should have a process for safely sharing them.
+
+### <a name="limitations"></a> Limitations of the ABFS connector
 
 * File last access time is not tracked.
 

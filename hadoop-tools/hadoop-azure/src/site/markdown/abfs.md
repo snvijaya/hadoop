@@ -446,6 +446,11 @@ enabled for your Azure Storage account."
 The directories can be specified as comma separated values. By default the value
 is "/hbase"
 
+### <a name="hnscheckconfigoptions"></a> HNS Check Options
+Config `fs.azure.account.hns.enabled` provides an option to specify whether
+ the storage account is HNS enabled or not. In case the config is not provided,
+  a server call is made to check the same.
+
 ### <a name="perfoptions"></a> Perf Options
 
 #### <a name="abfstracklatencyoptions"></a> 1. HTTP Request Tracking Options

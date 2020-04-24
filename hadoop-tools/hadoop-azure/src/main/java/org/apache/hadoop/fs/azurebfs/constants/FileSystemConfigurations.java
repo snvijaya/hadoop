@@ -28,6 +28,9 @@ import org.apache.hadoop.fs.azurebfs.utils.SSLSocketFactoryEx;
 @InterfaceAudience.Public
 @InterfaceStability.Evolving
 public final class FileSystemConfigurations {
+
+  public static final String DEFAULT_FS_AZURE_ACCOUNT_IS_HNS_ENABLED = "";
+
   public static final String USER_HOME_DIRECTORY_PREFIX = "/user";
 
   // Retry parameter defaults.

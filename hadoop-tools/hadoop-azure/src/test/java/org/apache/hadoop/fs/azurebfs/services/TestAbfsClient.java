@@ -39,7 +39,7 @@ import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.DOT;
  */
 public final class TestAbfsClient {
 
-  private final String accountName = "bogusAccountName";
+  private final String accountName = "bogusAccountName.dfs.core.windows.net";
 
   private void validateUserAgent(String expectedPattern,
                                  URL baseUrl,

@@ -39,6 +39,10 @@ import org.apache.hadoop.fs.azurebfs.contracts.services.ReadBufferStatus;
 
 //import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyCollection;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -80,7 +84,7 @@ public class TestAbfsInputStream extends
 
   private AbfsClient getMockAbfsClient() {
     // Mock failure for client.read()
-    AbfsClient client = mock(AbfsClient.class);
+    AbfsClient client = mock(AbfsClient.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
     AbfsPerfTracker tracker = new AbfsPerfTracker(
         "test",
         this.getAccountName(),
@@ -143,9 +147,8 @@ public class TestAbfsInputStream extends
     // ReadAhead threads are triggered asynchronously.
     // Wait a second before verifying the number of total calls.
     Thread.sleep(1000);
-    verify(client, times(count)).read(any(String.class), any(Long.class),
-        any(byte[].class), any(Integer.class), any(Integer.class),
-        any(String.class));
+    verify(client, times(count)).read(anyString(), anyLong(), any(byte[].class),
+        anyInt(), anyInt(), anyString());
   }
 
   private void checkEvictedStatus(AbfsInputStream inputStream, int position, boolean expectedToThrowException)
@@ -198,8 +201,8 @@ public class TestAbfsInputStream extends
         .doThrow(new TimeoutException("Internal Server error RAH-Thread-Z"))
         .doReturn(successOp) // Any extra calls to read, pass it.
         .when(client)
-        .read(any(String.class), any(Long.class), any(byte[].class),
-            any(Integer.class), any(Integer.class), any(String.class));
+        .read(anyString(), anyLong(), any(byte[].class),
+        anyInt(), anyInt(), anyString());
 
     AbfsInputStream inputStream = getAbfsInputStream(client, "testFailedReadAhead.txt");
 
@@ -231,8 +234,8 @@ public class TestAbfsInputStream extends
     // Actual read request fails with the failure in readahead thread
     doThrow(new TimeoutException("Internal Server error"))
         .when(client)
-        .read(any(String.class), any(Long.class), any(byte[].class),
-            any(Integer.class), any(Integer.class), any(String.class));
+        .read(anyString(), anyLong(), any(byte[].class),
+            anyInt(), anyInt(), anyString());
 
     AbfsInputStream inputStream = getAbfsInputStream(client, "testFailedReadAheadEviction.txt");
 
@@ -274,8 +277,8 @@ public class TestAbfsInputStream extends
         .doReturn(successOp) // pass the read for second read request
         .doReturn(successOp) // pass success for post eviction test
         .when(client)
-        .read(any(String.class), any(Long.class), any(byte[].class),
-            any(Integer.class), any(Integer.class), any(String.class));
+        .read(anyString(), anyLong(), any(byte[].class),
+            anyInt(), anyInt(), anyString());
 
     AbfsInputStream inputStream = getAbfsInputStream(client, "testOlderReadAheadFailure.txt");
 
@@ -327,8 +330,8 @@ public class TestAbfsInputStream extends
         .doThrow(new TimeoutException("Internal Server error for RAH-Y"))
         .doThrow(new TimeoutException("Internal Server error for RAH-Z"))
         .when(client)
-        .read(any(String.class), any(Long.class), any(byte[].class),
-            any(Integer.class), any(Integer.class), any(String.class));
+        .read(anyString(), anyLong(), any(byte[].class),
+            anyInt(), anyInt(), anyString());
 
     AbfsInputStream inputStream = getAbfsInputStream(client, "testSuccessfulReadAhead.txt");
     int beforeReadCompletedListSize = ReadBufferManager.getBufferManager().getCompletedReadListSize();
@@ -384,8 +387,8 @@ public class TestAbfsInputStream extends
         .doThrow(new TimeoutException("Internal Server error RAH-Thread-Z"))
         .doReturn(successOp) // Any extra calls to read, pass it.
         .when(client)
-        .read(any(String.class), any(Long.class), any(byte[].class),
-            any(Integer.class), any(Integer.class), any(String.class));
+        .read(anyString(), anyLong(), any(byte[].class),
+            anyInt(), anyInt(), anyString());
 
     AbfsInputStream inputStream = getAbfsInputStream(client, "testReadAheadManagerForFailedReadAhead.txt");
 
@@ -436,8 +439,8 @@ public class TestAbfsInputStream extends
         .doReturn(successOp) // pass the read for second read request
         .doReturn(successOp) // pass success for post eviction test
         .when(client)
-        .read(any(String.class), any(Long.class), any(byte[].class),
-            any(Integer.class), any(Integer.class), any(String.class));
+        .read(anyString(), anyLong(), any(byte[].class),
+            anyInt(), anyInt(), anyString());
 
     AbfsInputStream inputStream = getAbfsInputStream(client, "testReadAheadManagerForOlderReadAheadFailure.txt");
 
@@ -489,8 +492,8 @@ public class TestAbfsInputStream extends
         .doThrow(new TimeoutException("Internal Server error for RAH-Y"))
         .doThrow(new TimeoutException("Internal Server error for RAH-Z"))
         .when(client)
-        .read(any(String.class), any(Long.class), any(byte[].class),
-            any(Integer.class), any(Integer.class), any(String.class));
+        .read(anyString(), anyLong(), any(byte[].class),
+            anyInt(), anyInt(), anyString());
 
     AbfsInputStream inputStream = getAbfsInputStream(client, "testSuccessfulReadAhead.txt");
 

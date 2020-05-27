@@ -24,6 +24,10 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 
 import com.google.common.base.Preconditions;
+import com.google.common.annotations.VisibleForTesting;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.fs.FSExceptionMessages;
 import org.apache.hadoop.fs.FSInputStream;
@@ -35,6 +39,8 @@ import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AzureBlobFileSystemExc
  * The AbfsInputStream for AbfsClient.
  */
 public class AbfsInputStream extends FSInputStream {
+  private static final Logger LOG = LoggerFactory.getLogger(AbfsInputStream.class);
+
   private final AbfsClient client;
   private final Statistics statistics;
   private final String path;
@@ -228,6 +234,7 @@ public class AbfsInputStream extends FSInputStream {
     final AbfsRestOperation op;
     AbfsPerfTracker tracker = client.getAbfsPerfTracker();
     try (AbfsPerfInfo perfInfo = new AbfsPerfInfo(tracker, "readRemote", "read")) {
+      LOG.trace("Trigger client.read for path={} position={} offset={} length={}", path, position, offset, length);
       op = client.read(path, position, b, offset, length, tolerateOobAppends ? "*" : eTag);
       perfInfo.registerResult(op.getResult()).registerSuccess(true);
       incrementReadOps();
@@ -400,4 +407,5 @@ public class AbfsInputStream extends FSInputStream {
   public boolean markSupported() {
     return false;
   }
+
 }

@@ -43,7 +43,7 @@ public final class TestAbfsClient {
                                  AbfsConfiguration config,
                                  boolean includeSSLProvider) {
     AbfsClient client = new AbfsClient(baseUrl, null,
-        config, null, null, null);
+        config, null, null, null, null);
     String sslProviderName = null;
     if (includeSSLProvider) {
       sslProviderName = SSLSocketFactoryEx.getDefaultFactory().getProviderName();
@@ -90,5 +90,35 @@ public final class TestAbfsClient {
     AbfsConfiguration abfsConfiguration = new AbfsConfiguration(configuration, accountName);
     validateUserAgent(expectedUserAgentPattern, new URL("https://azure.com"),
         abfsConfiguration, true);
+  }
+
+  public static AbfsClient createTestClientFromCurrentContext(
+      AbfsClient baseAbfsClientInstance,
+      AbfsConfiguration abfsConfig)
+      throws AzureBlobFileSystemException {
+    AuthType currentAuthType = abfsConfig.getAuthType(
+        abfsConfig.getAccountName());
+
+    AbfsPerfTracker tracker = new AbfsPerfTracker("test",
+        abfsConfig.getAccountName(),
+        abfsConfig);
+
+    // Create test AbfsClient
+    AbfsClient testClient = new AbfsClient(
+        baseAbfsClientInstance.getBaseUrl(),
+        (currentAuthType == AuthType.SharedKey
+            ? new SharedKeyCredentials(
+            abfsConfig.getAccountName().substring(0,
+                abfsConfig.getAccountName().indexOf(DOT)),
+            abfsConfig.getStorageAccountKey())
+            : null),
+        abfsConfig,
+        new ExponentialRetryPolicy(abfsConfig.getMaxIoRetries()),
+        (currentAuthType == AuthType.OAuth
+            ? abfsConfig.getTokenProvider()
+            : null),
+        tracker, null);
+
+    return testClient;
   }
 }

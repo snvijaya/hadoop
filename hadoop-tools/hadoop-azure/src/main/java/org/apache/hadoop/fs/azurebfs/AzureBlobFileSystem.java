@@ -97,7 +97,7 @@ public class AzureBlobFileSystem extends FileSystem {
   private boolean delegationTokenEnabled = false;
   private AbfsDelegationTokenManager delegationTokenManager;
   private AbfsAuthorizer authorizer;
-  private AbfsCounters instrumentation;
+  private AbfsCounters abfsCounters;
 
   @Override
   public void initialize(URI uri, Configuration configuration)
@@ -109,11 +109,12 @@ public class AzureBlobFileSystem extends FileSystem {
     LOG.debug("Initializing AzureBlobFileSystem for {}", uri);
 
     this.uri = URI.create(uri.getScheme() + "://" + uri.getAuthority());
-    this.abfsStore = new AzureBlobFileSystemStore(uri, this.isSecureScheme(), configuration);
+    abfsCounters = new AbfsCountersImpl(uri);
+    this.abfsStore = new AzureBlobFileSystemStore(uri, this.isSecureScheme(),
+        configuration, abfsCounters);
     LOG.trace("AzureBlobFileSystemStore init complete");
 
     final AbfsConfiguration abfsConfiguration = abfsStore.getAbfsConfiguration();
-    instrumentation = new AbfsInstrumentation(uri);
     this.setWorkingDirectory(this.getHomeDirectory());
 
     if (abfsConfiguration.getCreateRemoteFileSystemDuringInitialization()) {
@@ -151,8 +152,8 @@ public class AzureBlobFileSystem extends FileSystem {
     sb.append("uri=").append(uri);
     sb.append(", user='").append(abfsStore.getUser()).append('\'');
     sb.append(", primaryUserGroup='").append(abfsStore.getPrimaryGroup()).append('\'');
-    if (instrumentation != null) {
-      sb.append(", Statistics: {").append(instrumentation.formString("{", "=",
+    if (abfsCounters != null) {
+      sb.append(", Statistics: {").append(abfsCounters.formString("{", "=",
           "}", true));
       sb.append("}");
     }
@@ -399,7 +400,7 @@ public class AzureBlobFileSystem extends FileSystem {
    * @param statistic the Statistic to be incremented.
    */
   private void incrementStatistic(AbfsStatistic statistic) {
-    instrumentation.incrementCounter(statistic, 1);
+    abfsCounters.incrementCounter(statistic, 1);
   }
 
   /**
@@ -1262,6 +1263,6 @@ public class AzureBlobFileSystem extends FileSystem {
 
   @VisibleForTesting
   Map<String, Long> getInstrumentationMap() {
-    return instrumentation.toMap();
+    return abfsCounters.toMap();
   }
 }

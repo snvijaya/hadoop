@@ -62,14 +62,17 @@ public class AbfsClient implements Closeable {
   private final String userAgent;
   private final AbfsPerfTracker abfsPerfTracker;
 
-  private final AccessTokenProvider tokenProvider;
+  private final String accountName;
+  private final AuthType authType;
+  private AccessTokenProvider tokenProvider;
+  private final AbfsCounters abfsCounters;
 
 
   public AbfsClient(final URL baseUrl, final SharedKeyCredentials sharedKeyCredentials,
                     final AbfsConfiguration abfsConfiguration,
                     final ExponentialRetryPolicy exponentialRetryPolicy,
-                    final AccessTokenProvider tokenProvider,
-                    final AbfsPerfTracker abfsPerfTracker) {
+                    final AbfsPerfTracker abfsPerfTracker,
+                    final AbfsCounters abfsCounters) {
     this.baseUrl = baseUrl;
     this.sharedKeyCredentials = sharedKeyCredentials;
     String baseUrlString = baseUrl.toString();
@@ -95,6 +98,18 @@ public class AbfsClient implements Closeable {
     this.userAgent = initializeUserAgent(abfsConfiguration, sslProviderName);
     this.tokenProvider = tokenProvider;
     this.abfsPerfTracker = abfsPerfTracker;
+    this.abfsCounters = abfsCounters;
+  }
+
+  public AbfsClient(final URL baseUrl, final SharedKeyCredentials sharedKeyCredentials,
+                    final AbfsConfiguration abfsConfiguration,
+                    final ExponentialRetryPolicy exponentialRetryPolicy,
+                    final AccessTokenProvider tokenProvider,
+                    final AbfsPerfTracker abfsPerfTracker,
+                    final AbfsCounters abfsCounters) {
+    this(baseUrl, sharedKeyCredentials, abfsConfiguration,
+        exponentialRetryPolicy, abfsPerfTracker, abfsCounters);
+    this.tokenProvider = tokenProvider;
   }
 
   @Override
@@ -628,5 +643,13 @@ public class AbfsClient implements Closeable {
   @VisibleForTesting
   URL getBaseUrl() {
     return baseUrl;
+  }
+
+  /**
+   * Getter for abfsCounters from AbfsClient.
+   * @return AbfsCounters instance.
+   */
+  protected AbfsCounters getAbfsCounters() {
+    return abfsCounters;
   }
 }

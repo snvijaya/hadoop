@@ -60,6 +60,9 @@ public class AbfsInputStream extends FSInputStream {
   //                                                      of valid bytes in buffer)
   private boolean closed = false;
 
+  /** Stream statistics. */
+  private final AbfsInputStreamStatistics streamStatistics;
+
   public AbfsInputStream(
           final AbfsClient client,
           final Statistics statistics,
@@ -76,6 +79,7 @@ public class AbfsInputStream extends FSInputStream {
     this.tolerateOobAppends = abfsInputStreamContext.isTolerateOobAppends();
     this.eTag = eTag;
     this.readAheadEnabled = true;
+    this.streamStatistics = abfsInputStreamContext.getStreamStatistics();
   }
 
   public String getPath() {
@@ -95,10 +99,21 @@ public class AbfsInputStream extends FSInputStream {
 
   @Override
   public synchronized int read(final byte[] b, final int off, final int len) throws IOException {
+    // check if buffer is null before logging the length
+    if (b != null) {
+      LOG.debug("read requested b.length = {} offset = {} len = {}", b.length,
+          off, len);
+    } else {
+      LOG.debug("read requested b = null offset = {} len = {}", off, len);
+    }
+
     int currentOff = off;
     int currentLen = len;
     int lastReadBytes;
     int totalReadBytes = 0;
+    if (streamStatistics != null) {
+      streamStatistics.readOperationStarted(off, len);
+    }
     incrementReadOps();
     do {
       lastReadBytes = readOneBlock(b, currentOff, currentLen);
@@ -120,6 +135,8 @@ public class AbfsInputStream extends FSInputStream {
     }
 
     Preconditions.checkNotNull(b);
+    LOG.debug("read one block requested b.length = {} off {} len {}", b.length,
+        off, len);
 
     if (len == 0) {
       return 0;
@@ -145,6 +162,7 @@ public class AbfsInputStream extends FSInputStream {
       bCursor = 0;
       limit = 0;
       if (buffer == null) {
+        LOG.debug("created new buffer size {}", bufferSize);
         buffer = new byte[bufferSize];
       }
 
@@ -173,6 +191,11 @@ public class AbfsInputStream extends FSInputStream {
     if (statistics != null) {
       statistics.incrementBytesRead(bytesToRead);
     }
+    if (streamStatistics != null) {
+      // Bytes read from the local buffer.
+      streamStatistics.bytesReadFromBuffer(bytesToRead);
+      streamStatistics.bytesRead(bytesToRead);
+    }
     return bytesToRead;
   }
 
@@ -190,8 +213,11 @@ public class AbfsInputStream extends FSInputStream {
       int numReadAheads = this.readAheadQueueDepth;
       long nextSize;
       long nextOffset = position;
+      LOG.debug("read ahead enabled issuing readheads num = {}", numReadAheads);
       while (numReadAheads > 0 && nextOffset < contentLength) {
         nextSize = Math.min((long) bufferSize, contentLength - nextOffset);
+        LOG.debug("issuing read ahead requestedOffset = {} requested size {}",
+            nextOffset, nextSize);
         ReadBufferManager.getBufferManager().queueReadAhead(this, nextOffset, (int) nextSize);
         nextOffset = nextOffset + nextSize;
         numReadAheads--;
@@ -201,6 +227,7 @@ public class AbfsInputStream extends FSInputStream {
       receivedBytes = ReadBufferManager.getBufferManager().getBlock(this, position, length, b);
       if (receivedBytes > 0) {
         incrementReadOps();
+        LOG.debug("Received data from read ahead, not doing remote read");
         return receivedBytes;
       }
 
@@ -208,6 +235,7 @@ public class AbfsInputStream extends FSInputStream {
       receivedBytes = readRemote(position, b, offset, length);
       return receivedBytes;
     } else {
+      LOG.debug("read ahead disabled, reading remote");
       return readRemote(position, b, offset, length);
     }
   }
@@ -236,6 +264,11 @@ public class AbfsInputStream extends FSInputStream {
     try (AbfsPerfInfo perfInfo = new AbfsPerfInfo(tracker, "readRemote", "read")) {
       LOG.trace("Trigger client.read for path={} position={} offset={} length={}", path, position, offset, length);
       op = client.read(path, position, b, offset, length, tolerateOobAppends ? "*" : eTag);
+      if (streamStatistics != null) {
+        streamStatistics.remoteReadOperation();
+      }
+      LOG.debug("issuing HTTP GET request params position = {} b.length = {} "
+          + "offset = {} length = {}", position, b.length, offset, length);
       perfInfo.registerResult(op.getResult()).registerSuccess(true);
       incrementReadOps();
     } catch (AzureBlobFileSystemException ex) {
@@ -251,6 +284,7 @@ public class AbfsInputStream extends FSInputStream {
     if (bytesRead > Integer.MAX_VALUE) {
       throw new IOException("Unexpected Content-Length");
     }
+    LOG.debug("HTTP request read bytes = {}", bytesRead);
     return (int) bytesRead;
   }
 
@@ -271,6 +305,7 @@ public class AbfsInputStream extends FSInputStream {
    */
   @Override
   public synchronized void seek(long n) throws IOException {
+    LOG.debug("requested seek to position {}", n);
     if (closed) {
       throw new IOException(FSExceptionMessages.STREAM_IS_CLOSED);
     }
@@ -281,13 +316,21 @@ public class AbfsInputStream extends FSInputStream {
       throw new EOFException(FSExceptionMessages.CANNOT_SEEK_PAST_EOF);
     }
 
+    if (streamStatistics != null) {
+      streamStatistics.seek(n, fCursor);
+    }
+
     if (n>=fCursor-limit && n<=fCursor) { // within buffer
       bCursor = (int) (n-(fCursor-limit));
+      if (streamStatistics != null) {
+        streamStatistics.seekInBuffer();
+      }
       return;
     }
 
     // next read will read from here
     fCursor = n;
+    LOG.debug("set fCursor to {}", fCursor);
 
     //invalidate buffer
     limit = 0;
@@ -379,6 +422,7 @@ public class AbfsInputStream extends FSInputStream {
   public synchronized void close() throws IOException {
     closed = true;
     buffer = null; // de-reference the buffer so it can be GC'ed sooner
+    LOG.debug("Closing {}", this);
   }
 
   /**
@@ -408,4 +452,28 @@ public class AbfsInputStream extends FSInputStream {
     return false;
   }
 
+  /**
+   * Getter for AbfsInputStreamStatistics.
+   *
+   * @return an instance of AbfsInputStreamStatistics.
+   */
+  @VisibleForTesting
+  public AbfsInputStreamStatistics getStreamStatistics() {
+    return streamStatistics;
+  }
+
+  /**
+   * Get the statistics of the stream.
+   * @return a string value.
+   */
+  @Override
+  public String toString() {
+    final StringBuilder sb = new StringBuilder(super.toString());
+    if (streamStatistics != null) {
+      sb.append("AbfsInputStream@(").append(this.hashCode()).append("){");
+      sb.append(streamStatistics.toString());
+      sb.append("}");
+    }
+    return sb.toString();
+  }
 }

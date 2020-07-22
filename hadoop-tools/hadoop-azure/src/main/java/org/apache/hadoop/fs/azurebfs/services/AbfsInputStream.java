@@ -228,6 +228,9 @@ public class AbfsInputStream extends FSInputStream {
       if (receivedBytes > 0) {
         incrementReadOps();
         LOG.debug("Received data from read ahead, not doing remote read");
+        if (streamStatistics != null) {
+          streamStatistics.readAheadBytesRead(receivedBytes);
+        }
         return receivedBytes;
       }
 
@@ -281,6 +284,9 @@ public class AbfsInputStream extends FSInputStream {
       throw new IOException(ex);
     }
     long bytesRead = op.getResult().getBytesReceived();
+    if (streamStatistics != null) {
+      streamStatistics.remoteBytesRead(bytesRead);
+    }
     if (bytesRead > Integer.MAX_VALUE) {
       throw new IOException("Unexpected Content-Length");
     }

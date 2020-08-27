@@ -169,6 +169,7 @@ public class AbfsClient implements Closeable {
   AbfsUriQueryBuilder createDefaultUriQueryBuilder() {
     final AbfsUriQueryBuilder abfsUriQueryBuilder = new AbfsUriQueryBuilder();
     abfsUriQueryBuilder.addQuery(QUERY_PARAM_TIMEOUT, DEFAULT_TIMEOUT);
+    abfsUriQueryBuilder.addQuery(QUERY_PARAM_SESSION_ID, abfsConfiguration.getSessionId());
     return abfsUriQueryBuilder;
   }
 

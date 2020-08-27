@@ -56,6 +56,18 @@ public class ITestAzureBlobFileSystemE2E extends AbstractAbfsIntegrationTest {
     testWriteOneByteToFile(testFilePath);
   }
 
+
+  @Test
+  public void testSessionId() throws Exception {
+    org.apache.hadoop.conf.Configuration config = this.getRawConfiguration();
+    config.set(ConfigurationKeys.FS_AZURE_SESSION_ID, "99999999-8888-2222-0000-121212121212");
+
+    final AzureBlobFileSystem fs = getFileSystem(config);
+    fs.create(new Path("/SessionIdTest")).close();
+    fs.getFileStatus(new Path("/SessionIdTest"));
+  }
+
+
   @Test
   public void testReadWriteBytesToFile() throws Exception {
     final AzureBlobFileSystem fs = getFileSystem();

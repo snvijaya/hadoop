@@ -330,7 +330,7 @@ public final class TestAbfsClient {
       modifiersField.setInt(tokenProviderField,
           tokenProviderField.getModifiers()
               & ~java.lang.reflect.Modifier.FINAL);
-      tokenProviderField.set(client, abfsConfig.getTokenProvider());
+      tokenProviderField.set(client, abfsConfig);
     }
 
     // override user agent
@@ -344,6 +344,14 @@ public final class TestAbfsClient {
         userAgentField.getModifiers()
             & ~java.lang.reflect.Modifier.FINAL);
     userAgentField.set(client, userAgent);
+
+    Field abfsConfigurationField = AbfsClient.class.getDeclaredField(
+        "abfsConfiguration");
+    abfsConfigurationField.setAccessible(true);
+    modifiersField.setInt(abfsConfigurationField,
+        abfsConfigurationField.getModifiers()
+            & ~java.lang.reflect.Modifier.FINAL);
+    abfsConfigurationField.set(client, abfsConfig);
 
     return client;
   }

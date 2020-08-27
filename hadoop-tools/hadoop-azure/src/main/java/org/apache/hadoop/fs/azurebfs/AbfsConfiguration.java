@@ -150,6 +150,10 @@ public class AbfsConfiguration{
       DefaultValue = AZURE_BLOCK_LOCATION_HOST_DEFAULT)
   private String azureBlockLocationHost;
 
+  @StringConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_SESSION_ID,
+      DefaultValue = DEFAULT_SESSION_ID)
+  private String sessionId;
+
   @IntegerConfigurationValidatorAnnotation(ConfigurationKey = AZURE_CONCURRENT_CONNECTION_VALUE_OUT,
       MinValue = 1,
       DefaultValue = MAX_CONCURRENT_WRITE_THREADS)
@@ -261,6 +265,14 @@ public class AbfsConfiguration{
         field.set(this, validateBoolean(field));
       }
     }
+  }
+
+  public String getSessionId() {
+    if (sessionId.isEmpty()) {
+      sessionId = java.util.UUID.randomUUID().toString();
+    }
+
+    return sessionId;
   }
 
   public Trilean getIsNamespaceEnabledAccount() {

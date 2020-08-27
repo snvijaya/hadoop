@@ -160,6 +160,6 @@ public final class ConfigurationKeys {
   public static final String FS_AZURE_LOCAL_USER_SP_MAPPING_FILE_PATH = "fs.azure.identity.transformer.local.service.principal.mapping.file.path";
   /** Key for Local Group to Service Group file location. */
   public static final String FS_AZURE_LOCAL_GROUP_SG_MAPPING_FILE_PATH = "fs.azure.identity.transformer.local.service.group.mapping.file.path";
-  public static final String FS_AZURE_SESSION_ID = "fs.azure.session_id";
+  public static final String FS_AZURE_CUSTOMER_CORRELATION_ID = "fs.azure.customer.correlation.id";
   private ConfigurationKeys() {}
 }

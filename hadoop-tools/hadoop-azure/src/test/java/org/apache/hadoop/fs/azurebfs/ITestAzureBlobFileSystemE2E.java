@@ -60,7 +60,7 @@ public class ITestAzureBlobFileSystemE2E extends AbstractAbfsIntegrationTest {
   @Test
   public void testCustomerCorrelationId() throws Exception {
     org.apache.hadoop.conf.Configuration config = this.getRawConfiguration();
-    config.set(ConfigurationKeys.FS_AZURE_CUSTOMER_CORRELATION_ID, "99999999-8888-2222-0000-121212121212");
+    config.set(ConfigurationKeys.FS_AZURE_CLIENT_CORRELATION_ID, "99999999-8888-2222-0000-121212121212");
 
     final AzureBlobFileSystem fs = getFileSystem(config);
     fs.create(new Path("/CustomerCorrelationIdTest")).close();

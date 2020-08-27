@@ -39,7 +39,7 @@ public final class HttpQueryParams {
   public static final String QUERY_PARAM_CLOSE = "close";
   public static final String QUERY_PARAM_UPN = "upn";
   public static final String QUERY_PARAM_BLOBTYPE = "blobtype";
-  public static final String QUERY_PARAM_CUSTOMER_CORRELATION_ID = "customerCorrelationId";
+  public static final String QUERY_PARAM_CLIENT_CORRELATION_ID = "clientCorrelationId";
 
   private HttpQueryParams() {}
 }

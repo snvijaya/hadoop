@@ -150,9 +150,9 @@ public class AbfsConfiguration{
       DefaultValue = AZURE_BLOCK_LOCATION_HOST_DEFAULT)
   private String azureBlockLocationHost;
 
-  @StringConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_CUSTOMER_CORRELATION_ID,
-      DefaultValue = DEFAULT_CUSTOMER_CORRELATION_ID)
-  private String customerCorrelationId;
+  @StringConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_CLIENT_CORRELATION_ID,
+      DefaultValue = DEFAULT_CLIENT_CORRELATION_ID)
+  private String clientCorrelationId;
 
   @IntegerConfigurationValidatorAnnotation(ConfigurationKey = AZURE_CONCURRENT_CONNECTION_VALUE_OUT,
       MinValue = 1,
@@ -267,12 +267,12 @@ public class AbfsConfiguration{
     }
   }
 
-  public String getCustomerCorrelationId() {
-    if (customerCorrelationId.isEmpty()) {
-      customerCorrelationId = java.util.UUID.randomUUID().toString();
+  public String getClientCorrelationId() {
+    if (clientCorrelationId.isEmpty()) {
+      clientCorrelationId = java.util.UUID.randomUUID().toString();
     }
 
-    return customerCorrelationId;
+    return clientCorrelationId;
   }
 
   public Trilean getIsNamespaceEnabledAccount() {

@@ -45,8 +45,9 @@ public final class TestAbfsClient {
                                  URL baseUrl,
                                  AbfsConfiguration config,
                                  boolean includeSSLProvider) {
+    AbfsClientContext abfsClientContext = new AbfsClientContextBuilder().build();
     AbfsClient client = new AbfsClient(baseUrl, null,
-        config, null, null, null, null);
+        config, null, abfsClientContext);
     String sslProviderName = null;
     if (includeSSLProvider) {
       sslProviderName = SSLSocketFactoryEx.getDefaultFactory().getProviderName();
@@ -106,6 +107,12 @@ public final class TestAbfsClient {
         abfsConfig.getAccountName(),
         abfsConfig);
 
+    AbfsClientContext abfsClientContext =
+        new AbfsClientContextBuilder().withAbfsPerfTracker(tracker)
+                                .withExponentialRetryPolicy(
+                                    new ExponentialRetryPolicy(abfsConfig.getMaxIoRetries()))
+                                .build();
+
     // Create test AbfsClient
     AbfsClient testClient = new AbfsClient(
         baseAbfsClientInstance.getBaseUrl(),
@@ -116,11 +123,10 @@ public final class TestAbfsClient {
             abfsConfig.getStorageAccountKey())
             : null),
         abfsConfig,
-        new ExponentialRetryPolicy(abfsConfig.getMaxIoRetries()),
         (currentAuthType == AuthType.OAuth
             ? abfsConfig.getTokenProvider()
             : null),
-        tracker, null);
+        abfsClientContext);
 
     return testClient;
   }

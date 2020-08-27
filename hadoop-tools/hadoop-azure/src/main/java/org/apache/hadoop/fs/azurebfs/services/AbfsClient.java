@@ -62,21 +62,23 @@ public class AbfsClient implements Closeable {
   private final String userAgent;
   private final AbfsPerfTracker abfsPerfTracker;
 
+  private final String accountName;
+  private final AuthType authType;
   private AccessTokenProvider tokenProvider;
   private final AbfsCounters abfsCounters;
 
 
   public AbfsClient(final URL baseUrl, final SharedKeyCredentials sharedKeyCredentials,
                     final AbfsConfiguration abfsConfiguration,
-                    final ExponentialRetryPolicy exponentialRetryPolicy,
-                    final AbfsPerfTracker abfsPerfTracker,
-                    final AbfsCounters abfsCounters) {
+                    final AbfsClientContext abfsClientContext) {
     this.baseUrl = baseUrl;
     this.sharedKeyCredentials = sharedKeyCredentials;
     String baseUrlString = baseUrl.toString();
     this.filesystem = baseUrlString.substring(baseUrlString.lastIndexOf(FORWARD_SLASH) + 1);
     this.abfsConfiguration = abfsConfiguration;
-    this.retryPolicy = exponentialRetryPolicy;
+    this.retryPolicy = abfsClientContext.getExponentialRetryPolicy();
+    this.accountName = abfsConfiguration.getAccountName().substring(0, abfsConfiguration.getAccountName().indexOf(AbfsHttpConstants.DOT));
+    this.authType = abfsConfiguration.getAuthType(accountName);
 
     String sslProviderName = null;
 
@@ -95,18 +97,15 @@ public class AbfsClient implements Closeable {
 
     this.userAgent = initializeUserAgent(abfsConfiguration, sslProviderName);
     this.tokenProvider = tokenProvider;
-    this.abfsPerfTracker = abfsPerfTracker;
-    this.abfsCounters = abfsCounters;
+    this.abfsPerfTracker = abfsClientContext.getAbfsPerfTracker();
+    this.abfsCounters = abfsClientContext.getAbfsCounters();
   }
 
   public AbfsClient(final URL baseUrl, final SharedKeyCredentials sharedKeyCredentials,
                     final AbfsConfiguration abfsConfiguration,
-                    final ExponentialRetryPolicy exponentialRetryPolicy,
                     final AccessTokenProvider tokenProvider,
-                    final AbfsPerfTracker abfsPerfTracker,
-                    final AbfsCounters abfsCounters) {
-    this(baseUrl, sharedKeyCredentials, abfsConfiguration,
-        exponentialRetryPolicy, abfsPerfTracker, abfsCounters);
+                    final AbfsClientContext abfsClientContext) {
+    this(baseUrl, sharedKeyCredentials, abfsConfiguration, abfsClientContext);
     this.tokenProvider = tokenProvider;
   }
 

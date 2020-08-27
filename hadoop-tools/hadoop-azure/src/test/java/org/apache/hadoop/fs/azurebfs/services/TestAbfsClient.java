@@ -330,7 +330,7 @@ public final class TestAbfsClient {
       modifiersField.setInt(tokenProviderField,
           tokenProviderField.getModifiers()
               & ~java.lang.reflect.Modifier.FINAL);
-      tokenProviderField.set(client, abfsConfig);
+      tokenProviderField.set(client, abfsConfig.getTokenProvider());
     }
 
     // override user agent

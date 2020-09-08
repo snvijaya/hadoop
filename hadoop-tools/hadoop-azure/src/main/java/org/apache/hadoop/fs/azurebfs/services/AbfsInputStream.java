@@ -62,6 +62,8 @@ public class AbfsInputStream extends FSInputStream {
 
   /** Stream statistics. */
   private final AbfsInputStreamStatistics streamStatistics;
+  private long bytesFromReadAhead; // bytes read from readAhead; for testing
+  private long bytesFromRemoteRead; // bytes read remotely; for testing
 
   public AbfsInputStream(
           final AbfsClient client,
@@ -225,6 +227,7 @@ public class AbfsInputStream extends FSInputStream {
 
       // try reading from buffers first
       receivedBytes = ReadBufferManager.getBufferManager().getBlock(this, position, length, b);
+      bytesFromReadAhead += receivedBytes;
       if (receivedBytes > 0) {
         incrementReadOps();
         LOG.debug("Received data from read ahead, not doing remote read");
@@ -291,6 +294,7 @@ public class AbfsInputStream extends FSInputStream {
       throw new IOException("Unexpected Content-Length");
     }
     LOG.debug("HTTP request read bytes = {}", bytesRead);
+    bytesFromRemoteRead += bytesRead;
     return (int) bytesRead;
   }
 
@@ -466,6 +470,26 @@ public class AbfsInputStream extends FSInputStream {
   @VisibleForTesting
   public AbfsInputStreamStatistics getStreamStatistics() {
     return streamStatistics;
+  }
+
+  /**
+   * Getter for bytes read from readAhead buffer that fills asynchronously.
+   *
+   * @return value of the counter in long.
+   */
+  @VisibleForTesting
+  public long getBytesFromReadAhead() {
+    return bytesFromReadAhead;
+  }
+
+  /**
+   * Getter for bytes read remotely from the data store.
+   *
+   * @return value of the counter in long.
+   */
+  @VisibleForTesting
+  public long getBytesFromRemoteRead() {
+    return bytesFromRemoteRead;
   }
 
   /**

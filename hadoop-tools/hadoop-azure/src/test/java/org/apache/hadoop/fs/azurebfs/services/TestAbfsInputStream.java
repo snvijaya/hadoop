@@ -71,16 +71,28 @@ public class TestAbfsInputStream extends
     return client;
   }
 
-  private AbfsInputStream getAbfsInputStream(AbfsClient mockAbfsClient, String fileName) {
+  public AbfsInputStream getAbfsInputStream(AbfsClient abfsClient, String fileName) {
+    return getAbfsInputStream(abfsClient, fileName, THREE_KB, "eTag", 10, ONE_KB, false);
+  }
+
+  public AbfsInputStream getAbfsInputStream(AbfsClient abfsClient,
+      String fileName,
+      int fileSize,
+      String eTag,
+      int readAheadQueueDepth,
+      int readBufferSize,
+      boolean alwaysReadBufferSize) {
     AbfsInputStreamContext inputStreamContext = new AbfsInputStreamContext(-1);
     // Create AbfsInputStream with the client instance
     AbfsInputStream inputStream = new AbfsInputStream(
-        mockAbfsClient,
+        abfsClient,
         null,
         FORWARD_SLASH + fileName,
-        THREE_KB,
-        inputStreamContext.withReadBufferSize(ONE_KB).withReadAheadQueueDepth(10),
-        "eTag");
+        fileSize,
+        inputStreamContext.withReadBufferSize(readBufferSize)
+            .withReadAheadQueueDepth(readAheadQueueDepth)
+            .withShouldReadBufferSizeAlways(alwaysReadBufferSize),
+        eTag);
 
     inputStream.setCachedSasToken(
         TestCachedSASToken.getTestCachedSASTokenInstance());

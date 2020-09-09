@@ -21,6 +21,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.util.Random;
 import java.util.concurrent.Callable;
+import java.util.UUID;
 
 import org.junit.Assume;
 import org.junit.Ignore;
@@ -28,9 +29,13 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FSExceptionMessages;
+import org.apache.hadoop.fs.azurebfs.services.AbfsInputStream;
+import org.apache.hadoop.fs.azurebfs.services.TestAbfsInputStream;
+
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -38,6 +43,9 @@ import org.apache.hadoop.fs.azure.NativeAzureFileSystem;
 import org.apache.hadoop.fs.contract.ContractTestUtils;
 
 import static org.apache.hadoop.test.LambdaTestUtils.intercept;
+import static org.apache.hadoop.fs.azurebfs.AbfsStatistic.BYTES_RECEIVED;
+import static org.apache.hadoop.fs.azurebfs.AbfsStatistic.GET_RESPONSES;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.ETAG;
 
 /**
  * Test random read operation.
@@ -448,6 +456,86 @@ public class ITestAzureBlobFileSystemRandomRead extends
             ratio < maxAcceptableRatio);
   }
 
+  @Test
+  public void testAlwaysReadBufferSizeConfig() throws Throwable {
+    //testAlwaysReadBufferSizeConfig(false);
+    testAlwaysReadBufferSizeConfig(true);
+  }
+
+  private void assertStatistics(AzureBlobFileSystem fs,
+      AbfsStatistic metric, long expected) {
+    assertAbfsStatistics(
+        metric,
+        expected,
+        fs.getInstrumentationMap());
+  }
+
+  public void testAlwaysReadBufferSizeConfig(boolean alwaysReadBufferSizeConfigValue)
+      throws Throwable {
+    final AzureBlobFileSystem currentFs = getFileSystem();
+    Configuration config = new Configuration(this.getRawConfiguration());
+    config.set("fs.azure.readaheadqueue.depth", "0");
+    config.set("fs.azure.always.read.buffer.size",
+        Boolean.toString(alwaysReadBufferSizeConfigValue));
+
+    final Path testFile = new Path("/FileName_"
+        + UUID.randomUUID().toString());
+
+    final AzureBlobFileSystem fs = createTestFile(testFile, 16 * MEGABYTE,
+        8 * MEGABYTE, config);
+    String eTag = fs.getAbfsClient()
+        .getPathStatus(testFile.toUri().getPath(), false)
+        .getResult()
+        .getResponseHeader(ETAG);
+
+    TestAbfsInputStream testInputStream = new TestAbfsInputStream();
+
+    AbfsInputStream inputStream = testInputStream.getAbfsInputStream(
+        fs.getAbfsClient(), testFile.getName(), 16 * MEGABYTE, eTag, 0,
+        4 * MEGABYTE, alwaysReadBufferSizeConfigValue);
+
+      long connectionsAtStart = fs.getInstrumentationMap()
+          .get(GET_RESPONSES.getStatName());
+
+      long dateSizeReadStatAtStart = fs.getInstrumentationMap()
+          .get(BYTES_RECEIVED.getStatName());
+
+      long newReqCount = 0;
+      long newDataSizeRead = 0;
+
+      byte[] buffer20b = new byte[20];
+      byte[] buffer30b = new byte[30];
+      byte[] byteBuffer5 = new byte[5];
+
+      inputStream.read(byteBuffer5, 0, 5);
+      newReqCount++;
+      newDataSizeRead += 4 * 1024 * 1024;
+
+      assertStatistics(fs, GET_RESPONSES, connectionsAtStart + newReqCount);
+      assertStatistics(fs, BYTES_RECEIVED, dateSizeReadStatAtStart + newDataSizeRead);
+
+      inputStream.seek(9 * MEGABYTE);
+      inputStream.read(buffer20b, 0, 1);
+      newReqCount++;
+      if (alwaysReadBufferSizeConfigValue) {
+        newDataSizeRead += 4 * 1024 * 1024;
+      } else {
+        newDataSizeRead += 20;
+      }
+
+      assertStatistics(fs, GET_RESPONSES, connectionsAtStart + newReqCount);
+      assertStatistics(fs, BYTES_RECEIVED, dateSizeReadStatAtStart + newDataSizeRead);
+
+      inputStream.seek(9 * MEGABYTE + 20 + 3);
+      inputStream.read(buffer30b, 0, 3);
+      if (!alwaysReadBufferSizeConfigValue) {
+        newReqCount++;
+        newDataSizeRead += 30;
+      }
+
+      assertStatistics(fs, GET_RESPONSES, connectionsAtStart + newReqCount);
+      assertStatistics(fs, BYTES_RECEIVED, dateSizeReadStatAtStart + newDataSizeRead);
+  }
 
   private long sequentialRead(String version,
                               FileSystem fs,
@@ -527,27 +615,44 @@ public class ITestAzureBlobFileSystemRandomRead extends
   }
 
   private void createTestFile() throws Exception {
-    final AzureBlobFileSystem fs = this.getFileSystem();
-    if (fs.exists(TEST_FILE_PATH)) {
-      FileStatus status = fs.getFileStatus(TEST_FILE_PATH);
-      if (status.getLen() >= TEST_FILE_SIZE) {
-        return;
+    createTestFile(TEST_FILE_PATH,
+        TEST_FILE_SIZE,
+        CREATE_BUFFER_SIZE,
+        null);
+  }
+
+  private AzureBlobFileSystem createTestFile(Path testFilePath, long testFileSize,
+      int createBufferSize, Configuration config) throws Exception {
+    AzureBlobFileSystem fs;
+
+    if (config == null) {
+      fs = this.getFileSystem();
+    } else {
+      final AzureBlobFileSystem currentFs = getFileSystem();
+      fs = (AzureBlobFileSystem) FileSystem.newInstance(currentFs.getUri(),
+              config);
+    }
+
+    if (fs.exists(testFilePath)) {
+      FileStatus status = fs.getFileStatus(testFilePath);
+      if (status.getLen() >= testFileSize) {
+        return fs;
       }
     }
 
-    byte[] buffer = new byte[CREATE_BUFFER_SIZE];
+    byte[] buffer = new byte[createBufferSize];
     char character = 'a';
     for (int i = 0; i < buffer.length; i++) {
       buffer[i] = (byte) character;
       character = (character == 'z') ? 'a' : (char) ((int) character + 1);
     }
 
-    LOG.info(String.format("Creating test file %s of size: %d ", TEST_FILE_PATH, TEST_FILE_SIZE));
+    LOG.info(String.format("Creating test file %s of size: %d ", testFilePath, testFileSize));
     ContractTestUtils.NanoTimer timer = new ContractTestUtils.NanoTimer();
 
-    try (FSDataOutputStream outputStream = fs.create(TEST_FILE_PATH)) {
+    try (FSDataOutputStream outputStream = fs.create(testFilePath)) {
       int bytesWritten = 0;
-      while (bytesWritten < TEST_FILE_SIZE) {
+      while (bytesWritten < testFileSize) {
         outputStream.write(buffer);
         bytesWritten += buffer.length;
       }
@@ -557,9 +662,9 @@ public class ITestAzureBlobFileSystemRandomRead extends
       outputStream.close();
       closeTimer.end("time to close() output stream");
     }
-    timer.end("time to write %d KB", TEST_FILE_SIZE / 1024);
-    testFileLength = fs.getFileStatus(TEST_FILE_PATH).getLen();
-
+    timer.end("time to write %d KB", testFileSize / 1024);
+    testFileLength = fs.getFileStatus(testFilePath).getLen();
+    return fs;
   }
 
   private void assumeHugeFileExists() throws Exception{

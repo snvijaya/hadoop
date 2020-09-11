@@ -76,7 +76,7 @@ public class AbfsRestOperation {
 
   public void hardSetResult(int httpStatus) {
     result = AbfsHttpOperation.getAbfsHttpOperationWithFixedResult(this.url,
-        this.method, httpStatus);
+        this.method, httpStatus, client.getClientCorrelationId());
   }
 
   public URL getUrl() {
@@ -211,7 +211,8 @@ public class AbfsRestOperation {
     AbfsHttpOperation httpOperation = null;
     try {
       // initialize the HTTP request and open the connection
-      httpOperation = new AbfsHttpOperation(url, method, requestHeaders);
+      httpOperation = new AbfsHttpOperation(url, method, requestHeaders,
+          client.getClientCorrelationId());
       incrementCounter(AbfsStatistic.CONNECTIONS_MADE, 1);
 
       switch(client.getAuthType()) {

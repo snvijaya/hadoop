@@ -169,7 +169,6 @@ public class AbfsClient implements Closeable {
   AbfsUriQueryBuilder createDefaultUriQueryBuilder() {
     final AbfsUriQueryBuilder abfsUriQueryBuilder = new AbfsUriQueryBuilder();
     abfsUriQueryBuilder.addQuery(QUERY_PARAM_TIMEOUT, DEFAULT_TIMEOUT);
-    abfsUriQueryBuilder.addQuery(QUERY_PARAM_CLIENT_CORRELATION_ID, abfsConfiguration.getClientCorrelationId());
     return abfsUriQueryBuilder;
   }
 
@@ -896,6 +895,10 @@ public class AbfsClient implements Closeable {
 
   public AuthType getAuthType() {
     return authType;
+  }
+
+  public String getClientCorrelationId() {
+    return abfsConfiguration.getClientCorrelationId();
   }
 
   @VisibleForTesting

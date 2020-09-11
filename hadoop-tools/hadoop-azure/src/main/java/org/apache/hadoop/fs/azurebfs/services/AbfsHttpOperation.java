@@ -68,6 +68,7 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
   private String storageErrorCode = "";
   private String storageErrorMessage  = "";
   private String clientRequestId = "";
+  private String clientCorrelationId = "";
   private String requestId  = "";
   private String expectedAppendPos = "";
   private ListResultSchema listResultSchema = null;
@@ -83,16 +84,17 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
   private long recvResponseTimeMs;
 
   public static AbfsHttpOperation getAbfsHttpOperationWithFixedResult(final URL url,
-      final String method, final int httpStatus) {
-       return new AbfsHttpOperation(url, method, httpStatus);
+      final String method, final int httpStatus, final String clientCorrelationId) {
+       return new AbfsHttpOperation(url, method, httpStatus, clientCorrelationId);
   }
 
   private AbfsHttpOperation(final URL url, final String method,
-      final int httpStatus) {
+      final int httpStatus, final String clientCorrelationId) {
     this.isTraceEnabled = LOG.isTraceEnabled();
     this.url = url;
     this.method = method;
     this.statusCode = httpStatus;
+    this.clientCorrelationId = clientCorrelationId;
   }
 
   protected  HttpURLConnection getConnection() {
@@ -234,12 +236,15 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
    *
    * @throws IOException if an error occurs.
    */
-  public AbfsHttpOperation(final URL url, final String method, final List<AbfsHttpHeader> requestHeaders)
+  public AbfsHttpOperation(final URL url,
+      final String method,
+      final List<AbfsHttpHeader> requestHeaders,
+      final String clientCorrelationId)
       throws IOException {
     this.isTraceEnabled = LOG.isTraceEnabled();
     this.url = url;
     this.method = method;
-    this.clientRequestId = UUID.randomUUID().toString();
+    this.clientRequestId = String.format("%s:%s", clientCorrelationId, UUID.randomUUID().toString());
 
     this.connection = openConnection();
     if (this.connection instanceof HttpsURLConnection) {

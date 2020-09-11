@@ -268,10 +268,6 @@ public class AbfsConfiguration{
   }
 
   public String getClientCorrelationId() {
-    if (clientCorrelationId.isEmpty()) {
-      clientCorrelationId = java.util.UUID.randomUUID().toString();
-    }
-
     return clientCorrelationId;
   }
 

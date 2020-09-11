@@ -72,7 +72,7 @@ public final class TestAbfsPerfTracker {
 
     try (AbfsPerfInfo tracker = new AbfsPerfInfo(abfsPerfTracker, "disablingCaller",
             "disablingCallee")) {
-      AbfsHttpOperation op = new AbfsHttpOperation(url, "GET", new ArrayList<>());
+      AbfsHttpOperation op = new AbfsHttpOperation(url, "GET", new ArrayList<>(), "");
       tracker.registerResult(op).registerSuccess(true);
     }
 
@@ -90,7 +90,7 @@ public final class TestAbfsPerfTracker {
     assertThat(latencyDetails).describedAs("AbfsPerfTracker should be empty").isNull();
 
     List<Callable<Integer>> tasks = new ArrayList<>();
-    AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<>());
+    AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<>(), "");
 
     for (int i = 0; i < numTasks; i++) {
       tasks.add(() -> {
@@ -129,7 +129,7 @@ public final class TestAbfsPerfTracker {
     assertThat(latencyDetails).describedAs("AbfsPerfTracker should be empty").isNull();
 
     List<Callable<Integer>> tasks = new ArrayList<>();
-    AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<>());
+    AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<>(), "");
 
     for (int i = 0; i < numTasks; i++) {
       tasks.add(() -> {
@@ -168,7 +168,7 @@ public final class TestAbfsPerfTracker {
     long aggregateLatency = 0;
     AbfsPerfTracker abfsPerfTracker = new AbfsPerfTracker(accountName, filesystemName, false);
     List<Callable<Long>> tasks = new ArrayList<>();
-    final AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<>());
+    final AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<>(), "");
 
     for (int i = 0; i < numTasks; i++) {
       tasks.add(() -> {
@@ -203,7 +203,7 @@ public final class TestAbfsPerfTracker {
     long aggregateLatency = 0;
     AbfsPerfTracker abfsPerfTracker = new AbfsPerfTracker(accountName, filesystemName, false);
     List<Callable<Long>> tasks = new ArrayList<>();
-    final AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<>());
+    final AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<>(), "");
 
     for (int i = 0; i < numTasks; i++) {
       tasks.add(() -> {
@@ -267,7 +267,7 @@ public final class TestAbfsPerfTracker {
     long aggregateLatency = 0;
     AbfsPerfTracker abfsPerfTracker = new AbfsPerfTracker(accountName, filesystemName, true);
     List<Callable<Long>> tasks = new ArrayList<>();
-    final AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<>());
+    final AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<>(), "");
 
     for (int i = 0; i < numTasks; i++) {
       tasks.add(() -> {
@@ -301,7 +301,7 @@ public final class TestAbfsPerfTracker {
     long aggregateLatency = 0;
     AbfsPerfTracker abfsPerfTracker = new AbfsPerfTracker(accountName, filesystemName, true);
     List<Callable<Long>> tasks = new ArrayList<>();
-    final AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<>());
+    final AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<>(), "");
 
     for (int i = 0; i < numTasks; i++) {
       tasks.add(() -> {
@@ -361,7 +361,7 @@ public final class TestAbfsPerfTracker {
     Instant testInstant = Instant.now();
     AbfsPerfTracker abfsPerfTrackerDisabled = new AbfsPerfTracker(accountName, filesystemName, false);
     AbfsPerfTracker abfsPerfTrackerEnabled = new AbfsPerfTracker(accountName, filesystemName, true);
-    final AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<AbfsHttpHeader>());
+    final AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<AbfsHttpHeader>(), "");
 
     verifyNoException(abfsPerfTrackerDisabled);
     verifyNoException(abfsPerfTrackerEnabled);
@@ -369,7 +369,7 @@ public final class TestAbfsPerfTracker {
 
   private void verifyNoException(AbfsPerfTracker abfsPerfTracker) throws Exception {
     Instant testInstant = Instant.now();
-    final AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<AbfsHttpHeader>());
+    final AbfsHttpOperation httpOperation = new AbfsHttpOperation(url, "GET", new ArrayList<AbfsHttpHeader>(), "");
 
     try (
             AbfsPerfInfo tracker01 = new AbfsPerfInfo(abfsPerfTracker, null, null);

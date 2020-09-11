@@ -74,6 +74,8 @@ public final class FileSystemConfigurations {
 
   public static final int DEFAULT_READ_AHEAD_QUEUE_DEPTH = -1;
   public static final boolean DEFAULT_ALWAYS_READ_BUFFER_SIZE = true;
+  public static final int DEFAULT_FS_AZURE_READ_AHEAD_BLOCK_SIZE = 4 * 1024 * 1024;
+  public static final int DEFAULT_FS_AZURE_READ_AHEAD_BUFFER_COUNT = 16;
   public static final boolean DEFAULT_ENABLE_FLUSH = true;
   public static final boolean DEFAULT_DISABLE_OUTPUTSTREAM_FLUSH = true;
   public static final boolean DEFAULT_ENABLE_AUTOTHROTTLING = true;

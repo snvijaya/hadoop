@@ -46,7 +46,8 @@ import static org.apache.hadoop.util.StringUtils.toLowerCase;
 public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
         StreamCapabilities {
   private static final Logger LOG = LoggerFactory.getLogger(AbfsInputStream.class);
-
+  private static int NUM_OF_READ_AHEAD_BUFFERS;
+  private static int READ_AHEAD_BLOCK_SIZE;
   private final AbfsClient client;
   private final Statistics statistics;
   private final String path;
@@ -95,6 +96,9 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     this.cachedSasToken = new CachedSASToken(
         abfsInputStreamContext.getSasTokenRenewPeriodForStreamsInSeconds());
     this.streamStatistics = abfsInputStreamContext.getStreamStatistics();
+    NUM_OF_READ_AHEAD_BUFFERS = abfsInputStreamContext.getReadAheadBufferCount();
+    READ_AHEAD_BLOCK_SIZE = abfsInputStreamContext.getReadAheadBlockSize();
+    ReadBufferManager.initialize(NUM_OF_READ_AHEAD_BUFFERS, READ_AHEAD_BLOCK_SIZE);
   }
 
   public String getPath() {

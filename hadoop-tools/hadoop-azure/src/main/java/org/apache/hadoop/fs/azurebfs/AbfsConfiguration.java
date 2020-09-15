@@ -600,6 +600,10 @@ public class AbfsConfiguration{
   }
 
   public int getReadAheadBlockSize() {
+    if (this.readAheadBlockSize == -1) {
+      this.readAheadBlockSize = this.readBufferSize;
+    }
+
     return this.readAheadBlockSize;
   }
 

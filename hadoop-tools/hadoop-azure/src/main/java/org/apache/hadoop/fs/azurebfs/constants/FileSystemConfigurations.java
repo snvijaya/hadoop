@@ -56,7 +56,7 @@ public final class FileSystemConfigurations {
   // Default upload and download buffer size
   public static final int DEFAULT_WRITE_BUFFER_SIZE = 8 * ONE_MB;  // 8 MB
   public static final int APPENDBLOB_MAX_WRITE_BUFFER_SIZE = 4 * ONE_MB;  // 4 MB
-  public static final int DEFAULT_READ_BUFFER_SIZE = 12 * ONE_MB;  // 4 MB
+  public static final int DEFAULT_READ_BUFFER_SIZE = 4 * ONE_MB;  // 4 MB
   public static final int MIN_BUFFER_SIZE = 16 * ONE_KB;  // 16 KB
   public static final int MAX_BUFFER_SIZE = 100 * ONE_MB;  // 100 MB
   public static final long MAX_AZURE_BLOCK_SIZE = 256 * 1024 * 1024L; // changing default abfs blocksize to 256MB
@@ -72,7 +72,7 @@ public final class FileSystemConfigurations {
   public static final String DEFAULT_FS_AZURE_ATOMIC_RENAME_DIRECTORIES = "/hbase";
   public static final String DEFAULT_FS_AZURE_APPEND_BLOB_DIRECTORIES = "";
 
-  public static final int DEFAULT_READ_AHEAD_QUEUE_DEPTH = -1;
+  public static final int DEFAULT_READ_AHEAD_QUEUE_DEPTH = 2;
   public static final boolean DEFAULT_ALWAYS_READ_BUFFER_SIZE = true;
   public static final int DEFAULT_FS_AZURE_READ_AHEAD_BLOCK_SIZE = -1;
   public static final int DEFAULT_FS_AZURE_READ_AHEAD_BUFFER_COUNT = 16;

@@ -458,7 +458,7 @@ public class ITestAzureBlobFileSystemRandomRead extends
 
   @Test
   public void testAlwaysReadBufferSizeConfig() throws Throwable {
-    //testAlwaysReadBufferSizeConfig(false);
+    testAlwaysReadBufferSizeConfig(false);
     testAlwaysReadBufferSizeConfig(true);
   }
 

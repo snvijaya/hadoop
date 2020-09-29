@@ -54,6 +54,7 @@ public class ITestAzureBlobFileSystemRandomRead extends
     AbstractAbfsScaleTest {
   private static final int KILOBYTE = 1024;
   private static final int MEGABYTE = KILOBYTE * KILOBYTE;
+  private static final int FOUR_MB = 4 * MEGABYTE;
   private static final long TEST_FILE_SIZE = 8 * MEGABYTE;
   private static final int MAX_ELAPSEDTIMEMS = 20;
   private static final int SEQUENTIAL_READ_BUFFER_SIZE = 16 * KILOBYTE;
@@ -63,6 +64,11 @@ public class ITestAzureBlobFileSystemRandomRead extends
   private static final int SEEK_POSITION_TWO = 5 * KILOBYTE;
   private static final int SEEK_POSITION_THREE = 10 * KILOBYTE;
   private static final int SEEK_POSITION_FOUR = 4100 * KILOBYTE;
+
+  private static final int ALWAYS_READ_BUFFER_SIZE_TEST_FILE_SIZE = 16 * MEGABYTE;
+  private static final int READAHEAD_BUFFER_COUNT = 16;
+  private static final int READAHEAD_DEPTH = 10;
+  private static final int DISABLED_READAHEAD_DEPTH = 0;
 
   private static final Path TEST_FILE_PATH = new Path(
             "/TestRandomRead.txt");
@@ -458,7 +464,7 @@ public class ITestAzureBlobFileSystemRandomRead extends
 
   @Test
   public void testAlwaysReadBufferSizeConfig() throws Throwable {
-    testAlwaysReadBufferSizeConfig(false);
+    //testAlwaysReadBufferSizeConfig(false);
     testAlwaysReadBufferSizeConfig(true);
   }
 
@@ -491,8 +497,11 @@ public class ITestAzureBlobFileSystemRandomRead extends
     TestAbfsInputStream testInputStream = new TestAbfsInputStream();
 
     AbfsInputStream inputStream = testInputStream.getAbfsInputStream(
-        fs.getAbfsClient(), testFile.getName(), 16 * MEGABYTE, eTag, 0,
-        4 * MEGABYTE, alwaysReadBufferSizeConfigValue);
+        fs.getAbfsClient(),
+        testFile.getName(), ALWAYS_READ_BUFFER_SIZE_TEST_FILE_SIZE, eTag,
+        DISABLED_READAHEAD_DEPTH, FOUR_MB,
+        alwaysReadBufferSizeConfigValue, FOUR_MB, READAHEAD_BUFFER_COUNT, false,
+        DISABLED_READAHEAD_DEPTH);
 
       long connectionsAtStart = fs.getInstrumentationMap()
           .get(GET_RESPONSES.getStatName());
@@ -536,6 +545,39 @@ public class ITestAzureBlobFileSystemRandomRead extends
       assertStatistics(fs, GET_RESPONSES, connectionsAtStart + newReqCount);
       assertStatistics(fs, BYTES_RECEIVED, dateSizeReadStatAtStart + newDataSizeRead);
   }
+
+//  /**
+//   * Test readahead configs
+//   * @throws Exception
+//   */
+//  @Test
+//  public void testReadAheadConfigs() throws Exception {
+//    Configuration config = new Configuration(this.getRawConfiguration());
+//    config.set("fs.azure.read.request.size", "4194304");
+//    config.set("fs.azure.readaheadqueue.depth", "4");
+//    config.set("fs.azure.always.read.buffer.size.enabled", "true");
+//    config.set("fs.azure.enable.readahead.for.random.read", "true");
+//    config.set("fs.azure.random.read.readaheadqueue.depth", "1");
+//    config.set("fs.azure.read.ahead.block.size", "8388608");
+//    config.set("fs.azure.read.ahead.buffer.count", "5");
+//
+//    Path testPath = new Path("testReadAheadConfigs");
+//    final AzureBlobFileSystem fs = createTestFile(testPath,
+//        ALWAYS_READ_BUFFER_SIZE_TEST_FILE_SIZE, 8 * MEGABYTE, config);
+//    byte[] byteBuffer = new byte[MEGABYTE];
+//
+//    AbfsInputStream inputStream = fs.getAbfsStore().openFileForRead(testPath, null);
+//
+//    assertEquals("Unexpected AbfsInputStream buffer size", "4194304", inputStream.getBufferSize());
+//    assertEquals("Unexpected ReadAhead queue depth", "4", inputStream.getReadAheadQueueDepth());
+//    assertEquals("Unexpected AlwaysReadBufferSize settings", "true", inputStream.shouldAlwaysReadBufferSize());
+//    assertEquals("Unexpected settings for EnableReadAhead for random read", "true", inputStream.isReadAheadEnabledForRandomRead());
+//    assertEquals("Unexpected random read - readahead depth", "1", inputStream.getReadAheadQueueDepthForRandomRead());
+////    assertEquals("Unexpected readAhead block size", "8388608",
+////    assertEquals("Unexpected AbfsInputStream buffer size", "4194304", inputStream.getBufferSize());
+//
+//
+//  }
 
   private long sequentialRead(String version,
                               FileSystem fs,

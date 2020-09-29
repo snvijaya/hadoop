@@ -37,7 +37,7 @@ final class ReadBufferManager {
   private static final Logger LOGGER = LoggerFactory.getLogger(ReadBufferManager.class);
 
   private static int NUM_BUFFERS = 16;
-  private static int BLOCK_SIZE = 12 * 1024 * 1024;
+  private static int BLOCK_SIZE = 4 * 1024 * 1024;
   private static final int NUM_THREADS = 8;
   private static final int DEFAULT_THRESHOLD_AGE_MILLISECONDS = 3000; // have to see if 3 seconds is a good threshold
 
@@ -471,5 +471,33 @@ final class ReadBufferManager {
   @VisibleForTesting
   void callTryEvict() {
     tryEvict();
+  }
+
+  @VisibleForTesting
+  void testResetReadBufferManager() {
+    BUFFER_MANAGER = null;
+  }
+
+  @VisibleForTesting
+  ReadBuffer getBuffer(AbfsInputStream stream, long requestedOffset) {
+    ReadBuffer buffer = getFromList(readAheadQueue, stream, requestedOffset);
+    if (buffer != null) { return buffer; }
+
+    buffer = getFromList(inProgressList, stream, requestedOffset);
+    if (buffer != null) { return buffer; }
+
+    buffer = getFromList(completedReadList, stream, requestedOffset);
+
+    return buffer;
+  }
+
+  @VisibleForTesting
+  int getReadAheadBlockSize() {
+    return BLOCK_SIZE;
+  }
+
+  @VisibleForTesting
+  int getReadAheadBufferCount() {
+    return NUM_BUFFERS;
   }
 }

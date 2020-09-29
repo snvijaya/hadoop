@@ -555,6 +555,10 @@ public class AzureBlobFileSystemStore implements Closeable {
                 abfsConfiguration.shouldReadBufferSizeAlways())
             .withReadAheadBlockSize(abfsConfiguration.getReadAheadBlockSize())
             .withReadAheadBufferCount(abfsConfiguration.getReadAheadBufferCount())
+            .withIsReadAheadEnabledForRandomRead(
+                abfsConfiguration.isReadAheadEnabledForRandomRead())
+            .withReadAheadQueueDepthForRandomRead(
+                abfsConfiguration.getReadAheadQueueDepthForRandomRead())
             .build();
   }
 

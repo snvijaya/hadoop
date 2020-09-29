@@ -27,13 +27,17 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
 
   private int readAheadQueueDepth;
 
+  private boolean tolerateOobAppends;
+
   private boolean alwaysReadBufferSize;
 
-  private boolean tolerateOobAppends;
+  private int readAheadBlockSize;
 
   private int readAheadBufferCount;
 
-  private int readAheadBlockSize;
+  private boolean enableReadAheadForRandomRead;
+
+  private int readAheadQueueDepthForRandomRead;
 
   private AbfsInputStreamStatistics streamStatistics;
 
@@ -54,12 +58,6 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
     return this;
   }
 
-  public AbfsInputStreamContext withShouldReadBufferSizeAlways(
-      final boolean alwaysReadBufferSize) {
-    this.alwaysReadBufferSize = alwaysReadBufferSize;
-    return this;
-  }
-
   public AbfsInputStreamContext withTolerateOobAppends(
           final boolean tolerateOobAppends) {
     this.tolerateOobAppends = tolerateOobAppends;
@@ -72,19 +70,33 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
     return this;
   }
 
-  public AbfsInputStreamContext withReadAheadBufferCount(
-      final int readAheadBufferCount) {
-    this.readAheadBufferCount = (readAheadBufferCount > 0)
-        ? readAheadBufferCount
-        : 16;
+  public AbfsInputStreamContext withShouldReadBufferSizeAlways(
+      final boolean alwaysReadBufferSize) {
+    this.alwaysReadBufferSize = alwaysReadBufferSize;
     return this;
   }
 
   public AbfsInputStreamContext withReadAheadBlockSize(
       final int readAheadBlockSize) {
-    this.readAheadBlockSize = (readAheadBlockSize > 0)
-        ? readAheadBlockSize
-        : 4 * 1024 * 1024;
+    this.readAheadBlockSize = readAheadBlockSize;
+    return this;
+  }
+
+  public AbfsInputStreamContext withReadAheadBufferCount(
+      final int readAheadBufferCount) {
+    this.readAheadBufferCount = readAheadBufferCount;
+    return this;
+  }
+
+  public AbfsInputStreamContext withIsReadAheadEnabledForRandomRead(
+      final boolean enableReadAheadForRandomRead) {
+    this.enableReadAheadForRandomRead = enableReadAheadForRandomRead;
+    return this;
+  }
+
+  public AbfsInputStreamContext withReadAheadQueueDepthForRandomRead(
+      final int readAheadQueueDepthForRandomRead) {
+    this.readAheadQueueDepthForRandomRead = readAheadQueueDepthForRandomRead;
     return this;
   }
 
@@ -101,10 +113,6 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
     return readAheadQueueDepth;
   }
 
-  public boolean shouldReadBufferSizeAlways() {
-    return this.alwaysReadBufferSize;
-  }
-
   public boolean isTolerateOobAppends() {
     return tolerateOobAppends;
   }
@@ -113,11 +121,24 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
     return streamStatistics;
   }
 
-  public int getReadAheadBufferCount() {
-    return readAheadBufferCount;
+  public boolean shouldReadBufferSizeAlways() {
+    return alwaysReadBufferSize;
   }
 
   public int getReadAheadBlockSize() {
     return readAheadBlockSize;
   }
+
+  public int getReadAheadBufferCount() {
+    return readAheadBufferCount;
+  }
+
+  public boolean isReadAheadEnabledForRandomRead() {
+    return enableReadAheadForRandomRead;
+  }
+
+  public int getReadAheadQueueDepthForRandomRead() {
+    return readAheadQueueDepthForRandomRead;
+  }
+
 }

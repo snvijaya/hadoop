@@ -98,6 +98,7 @@ public class AzureBlobFileSystem extends FileSystem {
   private boolean delegationTokenEnabled = false;
   private AbfsDelegationTokenManager delegationTokenManager;
   private AbfsCounters abfsCounters;
+  public static final String FSID = java.util.UUID.randomUUID().toString();
 
   @Override
   public void initialize(URI uri, Configuration configuration)

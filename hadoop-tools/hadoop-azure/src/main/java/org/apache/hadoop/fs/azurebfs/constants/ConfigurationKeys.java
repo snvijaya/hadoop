@@ -69,9 +69,7 @@ public final class ConfigurationKeys {
    *  Default is empty. **/
   public static final String FS_AZURE_APPEND_BLOB_KEY = "fs.azure.appendblob.directories";
   public static final String FS_AZURE_READ_AHEAD_QUEUE_DEPTH = "fs.azure.readaheadqueue.depth";
-  public static final String FS_AZURE_ALWAYS_READ_BUFFER_SIZE_ENABLED = "fs.azure.always.read.buffer.size.enabled";
-  public static final String FS_AZURE_ENABLE_READ_AHEAD_FOR_RANDOM_READ = "fs.azure.enable.readahead.for.random.read";
-  public static final String FS_AZURE_RANDOM_READ_READ_AHEAD_QUEUE_DEPTH = "fs.azure.random.read.readaheadqueue.depth";
+  public static final String FS_AZURE_ALWAYS_READ_BUFFER_SIZE = "fs.azure.alwaysReadBufferSize";
   public static final String FS_AZURE_READ_AHEAD_BLOCK_SIZE = "fs.azure.read.ahead.block.size";
   public static final String FS_AZURE_READ_AHEAD_BUFFER_COUNT = "fs.azure.read.ahead.buffer.count";
   /** Provides a config control to enable or disable ABFS Flush operations -

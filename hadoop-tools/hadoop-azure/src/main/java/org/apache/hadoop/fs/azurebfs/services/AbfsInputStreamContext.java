@@ -35,10 +35,6 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
 
   private int readAheadBufferCount;
 
-  private boolean enableReadAheadForRandomRead;
-
-  private int readAheadQueueDepthForRandomRead;
-
   private AbfsInputStreamStatistics streamStatistics;
 
   public AbfsInputStreamContext(final long sasTokenRenewPeriodForStreamsInSeconds) {
@@ -88,18 +84,6 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
     return this;
   }
 
-  public AbfsInputStreamContext withIsReadAheadEnabledForRandomRead(
-      final boolean enableReadAheadForRandomRead) {
-    this.enableReadAheadForRandomRead = enableReadAheadForRandomRead;
-    return this;
-  }
-
-  public AbfsInputStreamContext withReadAheadQueueDepthForRandomRead(
-      final int readAheadQueueDepthForRandomRead) {
-    this.readAheadQueueDepthForRandomRead = readAheadQueueDepthForRandomRead;
-    return this;
-  }
-
   public AbfsInputStreamContext build() {
     // Validation of parameters to be done here.
     return this;
@@ -131,14 +115,6 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
 
   public int getReadAheadBufferCount() {
     return readAheadBufferCount;
-  }
-
-  public boolean isReadAheadEnabledForRandomRead() {
-    return enableReadAheadForRandomRead;
-  }
-
-  public int getReadAheadQueueDepthForRandomRead() {
-    return readAheadQueueDepthForRandomRead;
   }
 
 }

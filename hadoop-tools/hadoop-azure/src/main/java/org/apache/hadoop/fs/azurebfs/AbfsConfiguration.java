@@ -190,6 +190,8 @@ public class AbfsConfiguration{
   private int readAheadQueueDepth;
 
   @IntegerConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_READ_AHEAD_BLOCK_SIZE,
+      MinValue = MIN_BUFFER_SIZE,
+      MaxValue = MAX_BUFFER_SIZE,
       DefaultValue = DEFAULT_READ_AHEAD_BLOCK_SIZE)
   private int readAheadBlockSize;
 
@@ -198,16 +200,8 @@ public class AbfsConfiguration{
       DefaultValue = DEFAULT_READ_AHEAD_BUFFER_COUNT)
   private int readAheadBufferCount;
 
-  @BooleanConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_ENABLE_READ_AHEAD_FOR_RANDOM_READ,
-      DefaultValue = DEFAULT_ENABLE_READ_AHEAD_FOR_RANDOM_READ)
-  private boolean enableReadAheadForRandomRead;
-
-  @IntegerConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_RANDOM_READ_READ_AHEAD_QUEUE_DEPTH,
-      DefaultValue = DEFAULT_RANDOM_READ_READ_AHEAD_QUEUE_DEPTH)
-  private int readAheadQueueDepthForRandomRead;
-
-  @BooleanConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_ALWAYS_READ_BUFFER_SIZE_ENABLED,
-      DefaultValue = DEFAULT_ALWAYS_READ_BUFFER_SIZE_ENABLED)
+  @BooleanConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_ALWAYS_READ_BUFFER_SIZE,
+      DefaultValue = DEFAULT_ALWAYS_READ_BUFFER_SIZE)
   private boolean alwaysReadBufferSize;
 
   @BooleanConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_ENABLE_FLUSH,
@@ -608,19 +602,7 @@ public class AbfsConfiguration{
     return this.readAheadBufferCount;
   }
 
-  public boolean isReadAheadEnabledForRandomRead() {
-    return this.enableReadAheadForRandomRead;
-  }
-
-  public int getReadAheadQueueDepthForRandomRead() {
-    return this.readAheadQueueDepthForRandomRead;
-  }
-
   public int getReadAheadBlockSize() {
-    if ((this.readAheadBlockSize == -1) || (this.readAheadBlockSize == 0)) {
-      this.readAheadBlockSize = this.readBufferSize;
-    }
-
     return this.readAheadBlockSize;
   }
 

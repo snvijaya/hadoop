@@ -50,7 +50,7 @@ public final class FileSystemConfigurations {
   public static final int DEFAULT_AZURE_OAUTH_TOKEN_FETCH_RETRY_MAX_BACKOFF_INTERVAL = SIXTY_SECONDS;
   public static final int DEFAULT_AZURE_OAUTH_TOKEN_FETCH_RETRY_DELTA_BACKOFF = 2;
 
-  public static final int ONE_KB = 1024;
+  private static final int ONE_KB = 1024;
   private static final int ONE_MB = ONE_KB * ONE_KB;
 
   // Default upload and download buffer size
@@ -72,12 +72,10 @@ public final class FileSystemConfigurations {
   public static final String DEFAULT_FS_AZURE_ATOMIC_RENAME_DIRECTORIES = "/hbase";
   public static final String DEFAULT_FS_AZURE_APPEND_BLOB_DIRECTORIES = "";
 
-  public static final boolean DEFAULT_ALWAYS_READ_BUFFER_SIZE_ENABLED = false;
-  public static final int DEFAULT_READ_AHEAD_QUEUE_DEPTH = -1;
-  public static final int DEFAULT_READ_AHEAD_BLOCK_SIZE = -1;
+  public static final boolean DEFAULT_ALWAYS_READ_BUFFER_SIZE = true;
+  public static final int DEFAULT_READ_AHEAD_QUEUE_DEPTH = 2;
+  public static final int DEFAULT_READ_AHEAD_BLOCK_SIZE = 4 * 1024 * 1024;
   public static final int DEFAULT_READ_AHEAD_BUFFER_COUNT = 16;
-  public static final boolean DEFAULT_ENABLE_READ_AHEAD_FOR_RANDOM_READ = false;
-  public static final int DEFAULT_RANDOM_READ_READ_AHEAD_QUEUE_DEPTH = 2;
 
   public static final boolean DEFAULT_ENABLE_FLUSH = true;
   public static final boolean DEFAULT_DISABLE_OUTPUTSTREAM_FLUSH = true;

@@ -93,8 +93,7 @@ public class SharedKeyCredentials {
         computedBase64Signature);
     connection.setRequestProperty(HttpHeaderConfigurations.AUTHORIZATION,
         signature);
-    LOG.debug("Signing request with timestamp of {} and signature {}",
-        gmtTime, signature);
+    LOG.debug("Signing request with timestamp of {}", gmtTime);
   }
 
   private String computeHmac256(final String stringToSign) {

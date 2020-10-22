@@ -51,6 +51,9 @@ import org.apache.hadoop.fs.azurebfs.contracts.services.ListResultSchema;
 public class AbfsHttpOperation implements AbfsPerfLoggable {
   private static final Logger LOG = LoggerFactory.getLogger(AbfsHttpOperation.class);
 
+  private static final String SIGNATURE_QUERY_PARAM_KEY = "sig=";
+  private static final int SIGNATURE_QUERY_PARAM_KEY_LENGTH = 4;
+
   private static final int CONNECT_TIMEOUT = 30 * 1000;
   private static final int READ_TIMEOUT = 30 * 1000;
 
@@ -61,6 +64,7 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
 
   private final String method;
   private final URL url;
+  private final String urlLogString;
 
   private HttpURLConnection connection;
   private int statusCode;
@@ -91,6 +95,7 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
       final int httpStatus) {
     this.isTraceEnabled = LOG.isTraceEnabled();
     this.url = url;
+    this.urlLogString = sasSignatureRedactedUrl(this.url.toString());
     this.method = method;
     this.statusCode = httpStatus;
   }
@@ -180,7 +185,7 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
     sb.append(",");
     sb.append(method);
     sb.append(",");
-    sb.append(urlStr);
+    sb.append(urlLogString);
     return sb.toString();
   }
 
@@ -220,7 +225,7 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
       .append(" m=")
       .append(method)
       .append(" u=")
-      .append(urlStr);
+      .append(urlLogString);
 
     return sb.toString();
   }
@@ -238,6 +243,7 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
       throws IOException {
     this.isTraceEnabled = LOG.isTraceEnabled();
     this.url = url;
+    this.urlLogString = sasSignatureRedactedUrl(this.url.toString());
     this.method = method;
     this.clientRequestId = UUID.randomUUID().toString();
 
@@ -512,5 +518,21 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
    */
   private boolean isNullInputStream(InputStream stream) {
     return stream == null ? true : false;
+  }
+
+  private String sasSignatureRedactedUrl(String urlStr) {
+    int sigStartIndex = urlStr.indexOf(SIGNATURE_QUERY_PARAM_KEY);
+    if (sigStartIndex == -1) {
+      // no signature query param in the url
+      return urlStr;
+    }
+
+    sigStartIndex += SIGNATURE_QUERY_PARAM_KEY_LENGTH;
+    int sigEndIndex = urlStr.indexOf("&", sigStartIndex);
+    String sigValue = (sigEndIndex == -1)
+        ? urlStr.substring(sigStartIndex)
+        : urlStr.substring(sigStartIndex, sigEndIndex);
+
+    return urlStr.replace(sigValue, "XXXX");
   }
 }

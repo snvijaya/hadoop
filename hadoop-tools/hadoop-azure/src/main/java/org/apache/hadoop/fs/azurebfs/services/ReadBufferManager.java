@@ -37,8 +37,8 @@ import org.apache.hadoop.thirdparty.com.google.common.annotations.VisibleForTest
 final class ReadBufferManager {
   private static final Logger LOGGER = LoggerFactory.getLogger(ReadBufferManager.class);
 
-  private static final int NUM_BUFFERS = 16;
-  private static final int BLOCK_SIZE = 4 * 1024 * 1024;
+  private static int NUM_BUFFERS = 16;
+  private static int BLOCK_SIZE = 12 * 1024 * 1024;
   private static final int NUM_THREADS = 8;
   private static final int DEFAULT_THRESHOLD_AGE_MILLISECONDS = 3000; // have to see if 3 seconds is a good threshold
 
@@ -50,11 +50,17 @@ final class ReadBufferManager {
   private Queue<ReadBuffer> readAheadQueue = new LinkedList<>(); // queue of requests that are not picked up by any worker thread yet
   private LinkedList<ReadBuffer> inProgressList = new LinkedList<>(); // requests being processed by worker threads
   private LinkedList<ReadBuffer> completedReadList = new LinkedList<>(); // buffers available for reading
-  private static final ReadBufferManager BUFFER_MANAGER; // singleton, initialized in static initialization block
+  private static ReadBufferManager BUFFER_MANAGER; // singleton, initialized in static initialization block
 
-  static {
-    BUFFER_MANAGER = new ReadBufferManager();
-    BUFFER_MANAGER.init();
+
+  static ReadBufferManager initialize(int numOfReadAheadBuffers, int readAheadBlockSize) {
+    if (BUFFER_MANAGER == null) {
+      BUFFER_MANAGER = new ReadBufferManager(numOfReadAheadBuffers,
+          readAheadBlockSize);
+      BUFFER_MANAGER.init();
+    }
+
+    return BUFFER_MANAGER;
   }
 
   static ReadBufferManager getBufferManager() {
@@ -78,7 +84,9 @@ final class ReadBufferManager {
   }
 
   // hide instance constructor
-  private ReadBufferManager() {
+  private ReadBufferManager(int numOfReadAheadBuffers, int readAheadBlockSize) {
+    NUM_BUFFERS = numOfReadAheadBuffers;
+    BLOCK_SIZE = readAheadBlockSize;
   }
 
 

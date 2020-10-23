@@ -27,7 +27,13 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
 
   private int readAheadQueueDepth;
 
+  private boolean alwaysReadBufferSize;
+
   private boolean tolerateOobAppends;
+
+  private int readAheadBufferCount;
+
+  private int readAheadBlockSize;
 
   private AbfsInputStreamStatistics streamStatistics;
 
@@ -48,6 +54,12 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
     return this;
   }
 
+  public AbfsInputStreamContext withShouldReadBufferSizeAlways(
+      final boolean alwaysReadBufferSize) {
+    this.alwaysReadBufferSize = alwaysReadBufferSize;
+    return this;
+  }
+
   public AbfsInputStreamContext withTolerateOobAppends(
           final boolean tolerateOobAppends) {
     this.tolerateOobAppends = tolerateOobAppends;
@@ -57,6 +69,22 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
   public AbfsInputStreamContext withStreamStatistics(
       final AbfsInputStreamStatistics streamStatistics) {
     this.streamStatistics = streamStatistics;
+    return this;
+  }
+
+  public AbfsInputStreamContext withReadAheadBufferCount(
+      final int readAheadBufferCount) {
+    this.readAheadBufferCount = (readAheadBufferCount > 0)
+        ? readAheadBufferCount
+        : 16;
+    return this;
+  }
+
+  public AbfsInputStreamContext withReadAheadBlockSize(
+      final int readAheadBlockSize) {
+    this.readAheadBlockSize = (readAheadBlockSize > 0)
+        ? readAheadBlockSize
+        : 4 * 1024 * 1024;
     return this;
   }
 
@@ -73,11 +101,23 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
     return readAheadQueueDepth;
   }
 
+  public boolean shouldReadBufferSizeAlways() {
+    return this.alwaysReadBufferSize;
+  }
+
   public boolean isTolerateOobAppends() {
     return tolerateOobAppends;
   }
 
   public AbfsInputStreamStatistics getStreamStatistics() {
     return streamStatistics;
+  }
+
+  public int getReadAheadBufferCount() {
+    return readAheadBufferCount;
+  }
+
+  public int getReadAheadBlockSize() {
+    return readAheadBlockSize;
   }
 }

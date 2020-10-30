@@ -69,6 +69,7 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
   private final int bufferSize;
   private byte[] buffer;
   private int bufferIndex;
+  private int bufferToServiceCountSinceLastFlush;
   private final int maxConcurrentRequestCount;
   private final int maxRequestsThatCanBeQueued;
 
@@ -114,6 +115,7 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
     this.bufferSize = abfsOutputStreamContext.getWriteBufferSize();
     this.buffer = byteBufferPool.getBuffer(false, bufferSize).array();
     this.bufferIndex = 0;
+    this.bufferToServiceCountSinceLastFlush = 0;
     this.writeOperations = new ConcurrentLinkedDeque<>();
     this.outputStreamStatistics = abfsOutputStreamContext.getStreamStatistics();
 
@@ -308,8 +310,26 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
 
   private synchronized void flushInternal(boolean isClose) throws IOException {
     maybeThrowLastError();
+
+    // if its a flush post write < buffersize, send flush parameter in append
+    if ((bufferToServiceCountSinceLastFlush == 0) // there are no ongoing store writes
+        && (writeOperations.size() == 0) // double checking no appends in progress
+        && (bufferIndex > 0)) { // there is some data that is pending to be written
+      smallWriteOptimizedflushInternal(isClose);
+      return;
+    }
+
     writeCurrentBufferToService();
     flushWrittenBytesToService(isClose);
+    bufferToServiceCountSinceLastFlush = 0;
+  }
+
+  private synchronized void smallWriteOptimizedflushInternal(boolean isClose) throws IOException {
+    bufferToServiceCountSinceLastFlush = 0;
+    writeCurrentBufferToService(true, isClose);
+    waitForAppendsToComplete();
+    shrinkWriteOperationQueue();
+    maybeThrowLastError();
   }
 
   private synchronized void flushInternalAsync() throws IOException {
@@ -357,6 +377,10 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
   }
 
   private synchronized void writeCurrentBufferToService() throws IOException {
+    writeCurrentBufferToService(false, false);
+  }
+
+  private synchronized void writeCurrentBufferToService(boolean isFlush, boolean isClose) throws IOException {
     if (this.isAppendBlob) {
       writeAppendBlobCurrentBufferToService();
       return;
@@ -366,6 +390,7 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
       return;
     }
     outputStreamStatistics.writeCurrentBuffer();
+    bufferToServiceCountSinceLastFlush++;
 
     final byte[] bytes = buffer;
     final int bytesLength = bufferIndex;
@@ -388,7 +413,7 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
         try (AbfsPerfInfo perfInfo = new AbfsPerfInfo(tracker,
                 "writeCurrentBufferToService", "append")) {
           AbfsRestOperation op = client.append(path, offset, bytes, 0,
-                  bytesLength, cachedSasToken.get(), false);
+              bytesLength, cachedSasToken.get(), false, isFlush, isClose);
           cachedSasToken.update(op.getSasToken());
           perfInfo.registerResult(op.getResult());
           byteBufferPool.putBuffer(ByteBuffer.wrap(bytes));
@@ -409,7 +434,7 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
     shrinkWriteOperationQueue();
   }
 
-  private synchronized void flushWrittenBytesToService(boolean isClose) throws IOException {
+  private synchronized void waitForAppendsToComplete() throws IOException {
     for (WriteOperation writeOperation : writeOperations) {
       try {
         writeOperation.task.get();
@@ -427,6 +452,10 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
         throw lastError;
       }
     }
+  }
+
+  private synchronized void flushWrittenBytesToService(boolean isClose) throws IOException {
+    waitForAppendsToComplete();
     flushWrittenBytesToServiceInternal(position, false, isClose);
   }
 

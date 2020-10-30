@@ -395,8 +395,26 @@ public class AbfsClient implements Closeable {
     return op;
   }
 
-  public AbfsRestOperation append(final String path, final long position, final byte[] buffer, final int offset,
-                                  final int length, final String cachedSasToken, final boolean isAppendBlob) throws AzureBlobFileSystemException {
+  public AbfsRestOperation append(final String path,
+      final long position,
+      final byte[] buffer,
+      final int offset,
+      final int length,
+      final String cachedSasToken,
+      final boolean isAppendBlob) throws AzureBlobFileSystemException {
+    return append(path, position, buffer, offset, length, cachedSasToken,
+        isAppendBlob);
+  }
+
+  public AbfsRestOperation append(final String path,
+      final long position,
+      final byte[] buffer,
+      final int offset,
+      final int length,
+      final String cachedSasToken,
+      final boolean isAppendBlob,
+      final boolean isFlush,
+      final boolean isClose) throws AzureBlobFileSystemException {
     final List<AbfsHttpHeader> requestHeaders = createDefaultHeaders();
     // JDK7 does not support PATCH, so to workaround the issue we will use
     // PUT and specify the real method in the X-Http-Method-Override header.
@@ -406,6 +424,13 @@ public class AbfsClient implements Closeable {
     final AbfsUriQueryBuilder abfsUriQueryBuilder = createDefaultUriQueryBuilder();
     abfsUriQueryBuilder.addQuery(QUERY_PARAM_ACTION, APPEND_ACTION);
     abfsUriQueryBuilder.addQuery(QUERY_PARAM_POSITION, Long.toString(position));
+    if (isFlush) {
+      abfsUriQueryBuilder.addQuery(QUERY_PARAM_FLUSH, String.valueOf(isFlush));
+    }
+
+    if (isClose) {
+      abfsUriQueryBuilder.addQuery(QUERY_PARAM_CLOSE, String.valueOf(isClose));
+    }
     // AbfsInputStream/AbfsOutputStream reuse SAS tokens for better performance
     String sasTokenForReuse = appendSASTokenToQuery(path, SASTokenProvider.WRITE_OPERATION,
         abfsUriQueryBuilder, cachedSasToken);

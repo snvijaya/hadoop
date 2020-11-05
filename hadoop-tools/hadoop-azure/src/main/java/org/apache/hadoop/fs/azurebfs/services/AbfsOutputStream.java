@@ -60,6 +60,7 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
   private boolean closed;
   private boolean supportFlush;
   private boolean disableOutputStreamFlush;
+  private boolean enableSmallWriteOptimization;
   private boolean isAppendBlob;
   private volatile IOException lastError;
 
@@ -109,6 +110,8 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
     this.supportFlush = abfsOutputStreamContext.isEnableFlush();
     this.disableOutputStreamFlush = abfsOutputStreamContext
             .isDisableOutputStreamFlush();
+    this.enableSmallWriteOptimization
+        = abfsOutputStreamContext.isEnableSmallWriteOptimization();
     this.isAppendBlob = abfsOutputStreamContext.isAppendBlob();
     this.lastError = null;
     this.lastFlushOffset = 0;
@@ -312,7 +315,8 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
     maybeThrowLastError();
 
     // if its a flush post write < buffersize, send flush parameter in append
-    if ((bufferToServiceCountSinceLastFlush == 0) // there are no ongoing store writes
+    if (enableSmallWriteOptimization
+        && (bufferToServiceCountSinceLastFlush == 0) // there are no ongoing store writes
         && (writeOperations.size() == 0) // double checking no appends in progress
         && (bufferIndex > 0)) { // there is some data that is pending to be written
       smallWriteOptimizedflushInternal(isClose);

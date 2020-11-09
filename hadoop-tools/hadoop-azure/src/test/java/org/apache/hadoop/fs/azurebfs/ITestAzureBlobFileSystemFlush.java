@@ -256,20 +256,6 @@ public class ITestAzureBlobFileSystemFlush extends AbstractAbfsScaleTest {
   }
 
   @Test
-  public void testHflushWithSmallData() throws Exception {
-    final AzureBlobFileSystem fs = this.getFileSystem();
-    final byte[] buffer = new byte[3*1024*1024];
-    new Random().nextBytes(buffer);
-    String fileName = UUID.randomUUID().toString();
-    final Path testFilePath = path(fileName);
-
-    try (FSDataOutputStream stream = getStreamAfterWrite(fs, testFilePath, buffer, true)) {
-      stream.hflush();
-      validate(fs, testFilePath, buffer, true);
-    }
-  }
-
-  @Test
   public void testHflushWithFlushEnabled() throws Exception {
     final AzureBlobFileSystem fs = this.getFileSystem();
     byte[] buffer = getRandomBytesArray();
@@ -396,7 +382,7 @@ public class ITestAzureBlobFileSystemFlush extends AbstractAbfsScaleTest {
   private void validate(FileSystem fs, Path path, byte[] writeBuffer, boolean isEqual) throws IOException {
     String filePath = path.toUri().toString();
     try (FSDataInputStream inputStream = fs.open(path)) {
-      byte[] readBuffer = new byte[writeBuffer.length];
+      byte[] readBuffer = new byte[TEST_FILE_LENGTH];
       int numBytesRead = inputStream.read(readBuffer, 0, readBuffer.length);
       if (isEqual) {
         assertArrayEquals(

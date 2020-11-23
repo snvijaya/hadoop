@@ -395,15 +395,34 @@ public class AbfsClient implements Closeable {
     return op;
   }
 
-  public AbfsRestOperation append(final String path,
+  public AbfsRestOperation appendBlobAppend(final String path,
       final long position,
       final byte[] buffer,
       final int offset,
       final int length,
-      final String cachedSasToken,
-      final boolean isAppendBlob) throws AzureBlobFileSystemException {
-    return append(path, position, buffer, offset, length, cachedSasToken,
-        isAppendBlob);
+      final String cachedSasToken) throws AzureBlobFileSystemException {
+
+    AbfsRestOperation op = null;
+
+    try {
+
+      op = appendImpl(path, position, buffer, offset, length, cachedSasToken,
+          false, false);
+    } catch (AzureBlobFileSystemException e) {
+      if (appendSuccessCheckOp(op, path, (position + length))) {
+        final AbfsRestOperation successOp = new AbfsRestOperation(
+            AbfsRestOperationType.Append,
+            this,
+            HTTP_METHOD_PUT,
+            op.getUrl(),
+            op.getRequestHeaders(), buffer, offset, length, op.getSasToken());
+        successOp.hardSetResult(HttpURLConnection.HTTP_OK);
+        return successOp;
+      }
+      throw e;
+    }
+
+    return op;
   }
 
   public AbfsRestOperation append(final String path,
@@ -412,16 +431,29 @@ public class AbfsClient implements Closeable {
       final int offset,
       final int length,
       final String cachedSasToken,
-      final boolean isAppendBlob,
+      final boolean isFlush,
+      final boolean isClose) throws AzureBlobFileSystemException {
+
+    return appendImpl(path, position, buffer, offset, length, cachedSasToken,
+        isFlush, isClose);
+  }
+
+  protected AbfsRestOperation appendImpl(final String path,
+      final long position,
+      final byte[] buffer,
+      final int offset,
+      final int length,
+      final String cachedSasToken,
       final boolean isFlush,
       final boolean isClose) throws AzureBlobFileSystemException {
     final List<AbfsHttpHeader> requestHeaders = createDefaultHeaders();
     // JDK7 does not support PATCH, so to workaround the issue we will use
     // PUT and specify the real method in the X-Http-Method-Override header.
     requestHeaders.add(new AbfsHttpHeader(X_HTTP_METHOD_OVERRIDE,
-            HTTP_METHOD_PATCH));
+        HTTP_METHOD_PATCH));
 
-    final AbfsUriQueryBuilder abfsUriQueryBuilder = createDefaultUriQueryBuilder();
+    final AbfsUriQueryBuilder abfsUriQueryBuilder
+        = createDefaultUriQueryBuilder();
     abfsUriQueryBuilder.addQuery(QUERY_PARAM_ACTION, APPEND_ACTION);
     abfsUriQueryBuilder.addQuery(QUERY_PARAM_POSITION, Long.toString(position));
     if (isFlush) {
@@ -431,32 +463,20 @@ public class AbfsClient implements Closeable {
     if (isClose) {
       abfsUriQueryBuilder.addQuery(QUERY_PARAM_CLOSE, String.valueOf(isClose));
     }
+
     // AbfsInputStream/AbfsOutputStream reuse SAS tokens for better performance
-    String sasTokenForReuse = appendSASTokenToQuery(path, SASTokenProvider.WRITE_OPERATION,
+    String sasTokenForReuse = appendSASTokenToQuery(path,
+        SASTokenProvider.WRITE_OPERATION,
         abfsUriQueryBuilder, cachedSasToken);
 
     final URL url = createRequestUrl(path, abfsUriQueryBuilder.toString());
     final AbfsRestOperation op = new AbfsRestOperation(
         AbfsRestOperationType.Append,
-            this,
-            HTTP_METHOD_PUT,
-            url,
-            requestHeaders, buffer, offset, length, sasTokenForReuse);
-    try {
-      op.execute();
-    } catch (AzureBlobFileSystemException e) {
-      if (isAppendBlob && appendSuccessCheckOp(op, path, (position + length))) {
-        final AbfsRestOperation successOp = new AbfsRestOperation(
-            AbfsRestOperationType.Append,
-                this,
-                HTTP_METHOD_PUT,
-                url,
-                requestHeaders, buffer, offset, length, sasTokenForReuse);
-        successOp.hardSetResult(HttpURLConnection.HTTP_OK);
-        return successOp;
-      }
-      throw e;
-    }
+        this,
+        HTTP_METHOD_PUT,
+        url,
+        requestHeaders, buffer, offset, length, sasTokenForReuse);
+    op.execute();
 
     return op;
   }
@@ -468,7 +488,7 @@ public class AbfsClient implements Closeable {
   // in case we are doing a retry after checking the length of the file
   public boolean appendSuccessCheckOp(AbfsRestOperation op, final String path,
                                        final long length) throws AzureBlobFileSystemException {
-    if ((op.isARetriedRequest())
+    if ((op != null) && (op.isARetriedRequest())
         && (op.getResult().getStatusCode() == HttpURLConnection.HTTP_BAD_REQUEST)) {
       final AbfsRestOperation destStatusOp = getPathStatus(path, false);
       if (destStatusOp.getResult().getStatusCode() == HttpURLConnection.HTTP_OK) {

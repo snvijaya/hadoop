@@ -315,7 +315,8 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
     maybeThrowLastError();
 
     // if its a flush post write < buffersize, send flush parameter in append
-    if (enableSmallWriteOptimization
+    if (!isAppendBlob
+        && enableSmallWriteOptimization
         && (numOfAppendsToServerSinceLastFlush == 0) // there are no ongoing store writes
         && (writeOperations.size() == 0) // double checking no appends in progress
         && (bufferIndex > 0)) { // there is some data that is pending to be written
@@ -333,8 +334,8 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
     writeCurrentBufferToService(true, isClose);
     waitForAppendsToComplete();
     shrinkWriteOperationQueue();
-    numOfAppendsToServerSinceLastFlush = 0;
     maybeThrowLastError();
+    numOfAppendsToServerSinceLastFlush = 0;
   }
 
   private synchronized void flushInternalAsync() throws IOException {
@@ -359,8 +360,8 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
     AbfsPerfTracker tracker = client.getAbfsPerfTracker();
     try (AbfsPerfInfo perfInfo = new AbfsPerfInfo(tracker,
             "writeCurrentBufferToService", "append")) {
-      AbfsRestOperation op = client.append(path, offset, bytes, 0,
-          bytesLength, cachedSasToken.get(), this.isAppendBlob);
+      AbfsRestOperation op = client.appendBlobAppend(path, offset, bytes, 0,
+          bytesLength, cachedSasToken.get());
       cachedSasToken.update(op.getSasToken());
       outputStreamStatistics.uploadSuccessful(bytesLength);
       perfInfo.registerResult(op.getResult());
@@ -418,7 +419,7 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
         try (AbfsPerfInfo perfInfo = new AbfsPerfInfo(tracker,
                 "writeCurrentBufferToService", "append")) {
           AbfsRestOperation op = client.append(path, offset, bytes, 0,
-              bytesLength, cachedSasToken.get(), false, isFlush, isClose);
+              bytesLength, cachedSasToken.get(), isFlush, isClose);
           cachedSasToken.update(op.getSasToken());
           perfInfo.registerResult(op.getResult());
           byteBufferPool.putBuffer(ByteBuffer.wrap(bytes));
@@ -590,6 +591,9 @@ public class AbfsOutputStream extends OutputStream implements Syncable, StreamCa
   int getMaxRequestsThatCanBeQueued() {
     return maxRequestsThatCanBeQueued;
   }
+
+  @VisibleForTesting
+  Boolean isAppendBlobStream() { return isAppendBlob; }
 
   /**
    * Appending AbfsOutputStream statistics to base toString().

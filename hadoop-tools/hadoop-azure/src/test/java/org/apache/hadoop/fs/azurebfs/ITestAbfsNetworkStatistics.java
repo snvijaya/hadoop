@@ -236,9 +236,9 @@ public class ITestAbfsNetworkStatistics extends AbstractAbfsIntegrationTest {
 
       // Assertions
       metricMap = fs.getInstrumentationMap();
-      assertAbfsStatistics(CONNECTIONS_MADE,expectedConnectionsMade, metricMap);
-      assertAbfsStatistics(GET_RESPONSES, expectedGetResponses,metricMap);
-      assertAbfsStatistics(AbfsStatistic.BYTES_RECEIVED,expectedBytesReceived, metricMap);
+      assertAbfsStatistics(CONNECTIONS_MADE, expectedConnectionsMade, metricMap);
+      assertAbfsStatistics(GET_RESPONSES, expectedGetResponses, metricMap);
+      assertAbfsStatistics(AbfsStatistic.BYTES_RECEIVED, expectedBytesReceived, metricMap);
     } finally {
       IOUtils.cleanupWithLogger(LOG, out, in);
     }
@@ -287,9 +287,9 @@ public class ITestAbfsNetworkStatistics extends AbstractAbfsIntegrationTest {
 
       // Assertions
       metricMap = fs.getInstrumentationMap();
-      assertAbfsStatistics(CONNECTIONS_MADE,expectedConnectionsMade, metricMap);
-      assertAbfsStatistics(GET_RESPONSES, expectedGetResponses,metricMap);
-      assertAbfsStatistics(AbfsStatistic.BYTES_RECEIVED,expectedBytesReceived, metricMap);
+      assertAbfsStatistics(CONNECTIONS_MADE, expectedConnectionsMade, metricMap);
+      assertAbfsStatistics(GET_RESPONSES, expectedGetResponses, metricMap);
+      assertAbfsStatistics(AbfsStatistic.BYTES_RECEIVED, expectedBytesReceived, metricMap);
     } finally {
       IOUtils.cleanupWithLogger(LOG, out, in);
     }

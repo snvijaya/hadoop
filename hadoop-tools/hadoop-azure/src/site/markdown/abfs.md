@@ -90,7 +90,81 @@ Hflush() being the only documented API that can provide persistent data
 transfer, Flush() also attempting to persist buffered data will lead to
 performance issues.
 
-## Testing ABFS
+## <a name="Featureconfigoptions"></a> 
+### <a name="ioconfigoptions"></a> IO Options
+The following configs are related to read and write operations.
+
+`fs.azure.io.retry.max.retries`: Sets the number of retries for IO operations.
+Currently this is used only for the server call retry logic. Used within
+AbfsClient class as part of the ExponentialRetryPolicy. The value should be
+greater than or equal to 0.
+
+`fs.azure.write.request.size`: To set the write buffer size. Specify the value
+in bytes. The value should be between 16384 to 104857600 both inclusive (16 KB
+to 100 MB). The default value will be 8388608 (8 MB).
+
+`fs.azure.read.request.size`: To set the read buffer size.Specify the value in
+bytes. The value should be between 16384 to 104857600 both inclusive (16 KB to
+100 MB). The default value will be 4194304 (4 MB).
+
+`fs.azure.read.alwaysReadBufferSize`: Read request size configured by
+`fs.azure.read.request.size` will be honoured only when the reads done are in
+sequential pattern. When the read pattern is detected to be random, read size
+will be same as the buffer length provided by the calling process.
+This config when set to true will force random reads to also read in same
+request sizes as sequential reads. This is a means to have same read patterns
+as of ADLS Gen1, as it does not differentiate read patterns and always reads by
+the configured read request size. The default value for this config will be
+false, where reads for the provided buffer length is done when random read
+pattern is detected.
+
+`fs.azure.readaheadqueue.depth`: Sets the readahead queue depth in
+AbfsInputStream. In case the set value is negative the read ahead queue depth
+will be set as Runtime.getRuntime().availableProcessors(). By default the value
+will be -1. To disable readaheads, set this value to 0. If your workload is
+ doing only random reads (non-sequential) or you are seeing throttling, you
+  may try setting this value to 0.
+
+`fs.azure.read.readahead.blocksize`: To set the read buffer size for the read
+aheads. Specify the value in bytes. The value should be between 16384 to
+104857600 both inclusive (16 KB to 100 MB). The default value will be
+4194304 (4 MB).
+
+### <a name="securityconfigoptions"></a> Security Options
+`fs.azure.always.use.https`: Enforces to use HTTPS instead of HTTP when the flag
+is made true. Irrespective of the flag, AbfsClient will use HTTPS if the secure
+scheme (ABFSS) is used or OAuth is used for authentication. By default this will
+be set to true.
+
+`fs.azure.ssl.channel.mode`: Initializing DelegatingSSLSocketFactory with the
+specified SSL channel mode. Value should be of the enum
+DelegatingSSLSocketFactory.SSLChannelMode. The default value will be
+DelegatingSSLSocketFactory.SSLChannelMode.Default.
+
+### <a name="throttlingconfigoptions"></a> Throttling Options
+ABFS driver has the capability to throttle read and write operations to achieve
+maximum throughput by minimizing errors. The errors occur when the account
+ingress or egress limits are exceeded and, the server-side throttles requests.
+Server-side throttling causes the retry policy to be used, but the retry policy
+sleeps for long periods of time causing the total ingress or egress throughput
+to be as much as 35% lower than optimal. The retry policy is also after the
+fact, in that it applies after a request fails. On the other hand, the
+client-side throttling implemented here happens before requests are made and
+sleeps just enough to minimize errors, allowing optimal ingress and/or egress
+throughput. By default the throttling mechanism is enabled in the driver. The
+same can be disabled by setting the config `fs.azure.enable.autothrottling`
+to false.
+
+### <a name="renameconfigoptions"></a> Rename Options
+`fs.azure.atomic.rename.key`: Directories for atomic rename support can be
+specified comma separated in this config. The driver prints the following
+warning log if the source of the rename belongs to one of the configured
+directories. "The atomic rename feature is not supported by the ABFS scheme
+; however, rename, create and delete operations are atomic if Namespace is
+enabled for your Azure Storage account."
+The directories can be specified as comma separated values. By default the value
+is "/hbase"
+
 ### <a name="perfoptions"></a> Perf Options
 
 #### <a name="abfstracklatencyoptions"></a> 1. HTTP Request Tracking Options

@@ -39,9 +39,10 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
   private int readAheadBlockSize;
 
   private AbfsInputStreamStatistics streamStatistics;
-  public AbfsInputStreamContext() {
 
-  }
+  private boolean readSmallFilesCompletely;
+
+  private boolean optimizeFooterRead;
 
   public AbfsInputStreamContext withReadBufferSize(final int readBufferSize) {
     this.readBufferSize = readBufferSize;
@@ -65,6 +66,18 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
   public AbfsInputStreamContext withStreamStatistics(
       final AbfsInputStreamStatistics streamStatistics) {
     this.streamStatistics = streamStatistics;
+    return this;
+  }
+
+  public AbfsInputStreamContext withReadSmallFilesCompletely(
+      final boolean readSmallFilesCompletely) {
+    this.readSmallFilesCompletely = readSmallFilesCompletely;
+    return this;
+  }
+
+  public AbfsInputStreamContext withOptimizeFooterRead(
+      final boolean optimizeFooterRead) {
+    this.optimizeFooterRead = optimizeFooterRead;
     return this;
   }
 
@@ -107,6 +120,14 @@ public class AbfsInputStreamContext extends AbfsStreamContext {
 
   public AbfsInputStreamStatistics getStreamStatistics() {
     return streamStatistics;
+  }
+
+  public boolean readSmallFilesCompletely() {
+    return this.readSmallFilesCompletely;
+  }
+
+  public boolean optimizeFooterRead() {
+    return this.optimizeFooterRead;
   }
 
   public boolean shouldReadBufferSizeAlways() {

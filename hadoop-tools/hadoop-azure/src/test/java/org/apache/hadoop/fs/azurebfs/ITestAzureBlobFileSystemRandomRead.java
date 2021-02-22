@@ -85,6 +85,33 @@ public class ITestAzureBlobFileSystemRandomRead extends
   }
 
   @Test
+  public void dummyFastpathTest() throws Exception {
+
+    Path testPath = new Path(TEST_FILE_PREFIX + "_testBasicRead");
+    createTestFile(testPath);
+    System.out.println("TEST::: ####################################");
+    try (FSDataInputStream inputStream = this.getFileSystem().open(testPath)) {
+      System.out.println("TEST::: ####################################");
+
+
+
+
+      System.out.println("TEST::: ************************************");
+      byte[] buffer = new byte[30];
+      String allALen30 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      buffer = allALen30.getBytes();
+      System.out.println("TEST::: Before read - Size of buff = " + buffer.length + " currBuff=" + new String(buffer));
+
+      inputStream.read(buffer, 10, 20);
+
+      System.out.println("TEST::: Data read: " + new String(buffer));
+      System.out.println("TEST::: ************************************");
+    }
+
+    this.getFileSystem().delete(testPath, false);
+  }
+
+  @Test
   public void testBasicRead() throws Exception {
     Path testPath = new Path(TEST_FILE_PREFIX + "_testBasicRead");
     assumeHugeFileExists(testPath);

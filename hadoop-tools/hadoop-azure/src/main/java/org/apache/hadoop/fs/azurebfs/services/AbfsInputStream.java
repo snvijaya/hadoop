@@ -90,6 +90,7 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
   private final AbfsInputStreamStatistics streamStatistics;
   private long bytesFromReadAhead; // bytes read from readAhead; for testing
   private long bytesFromRemoteRead; // bytes read remotely; for testing
+  private boolean isFastPathEnabled = false;
 
   private final AbfsInputStreamContext context;
 
@@ -105,7 +106,7 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     this.path = path;
     this.contentLength = contentLength;
     this.bufferSize = abfsInputStreamContext.getReadBufferSize();
-    this.readAheadQueueDepth = abfsInputStreamContext.getReadAheadQueueDepth();
+    this.readAheadQueueDepth = 0; //abfsInputStreamContext.getReadAheadQueueDepth();
     this.tolerateOobAppends = abfsInputStreamContext.isTolerateOobAppends();
     this.eTag = eTag;
     this.readAheadEnabled = true;
@@ -120,12 +121,27 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     // Propagate the config values to ReadBufferManager so that the first instance
     // to initialize can set the readAheadBlockSize
     ReadBufferManager.setReadBufferManagerConfigs(readAheadBlockSize);
+    isFastPathEnabled = checkFastpathStatus();
+    //isFastPathEnabled = false;
+  }
+
+  private boolean checkFastpathStatus() {
+    try {
+      client.fastPathOpen(path, eTag);
+    } catch (AzureBlobFileSystemException e) {
+      LOG.debug("Fastpath status check failed with {}", e);
+      return false;
+    }
+
+    return true;
   }
 
   public String getPath() {
     return path;
   }
 
+//  private com.microsoft.abfs.Fastpath fastPath = new com.microsoft.abfs.Fastpath();
+ela
   @Override
   public int read() throws IOException {
     byte[] b = new byte[1];
@@ -135,6 +151,13 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     } else {
       return (b[0] & 0xFF);
     }
+
+//    fastPath.testAbfsdriverToFastpathJar(); // ==> load lib worked
+//    com.microsoft.abfs.FastpathOpenResponse oResp = fastPath.open();
+//    System.out.println(oResp.getClientRequestIdentifier());
+//    System.out.println(oResp.getServerActivityId());
+//    System.out.println(oResp.getFileLength());
+
   }
 
   @Override
@@ -207,6 +230,8 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
       if (buffer == null) {
         LOG.debug("created new buffer size {}", bufferSize);
         buffer = new byte[bufferSize];
+        byte allb = 'b';
+        java.util.Arrays.fill(buffer, allb);
       }
 
       if (alwaysReadBufferSize) {
@@ -431,7 +456,7 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     AbfsPerfTracker tracker = client.getAbfsPerfTracker();
     try (AbfsPerfInfo perfInfo = new AbfsPerfInfo(tracker, "readRemote", "read")) {
       LOG.trace("Trigger client.read for path={} position={} offset={} length={}", path, position, offset, length);
-      op = client.read(path, position, b, offset, length, tolerateOobAppends ? "*" : eTag, cachedSasToken.get());
+      op = client.read(path, position, b, offset, length, tolerateOobAppends ? "*" : eTag, cachedSasToken.get(), this.isFastPathEnabled);
       cachedSasToken.update(op.getSasToken());
       if (streamStatistics != null) {
         streamStatistics.remoteReadOperation();

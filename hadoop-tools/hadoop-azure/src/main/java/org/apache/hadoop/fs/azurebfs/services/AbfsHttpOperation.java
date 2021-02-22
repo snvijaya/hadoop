@@ -86,6 +86,17 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
   private long sendRequestTimeMs;
   private long recvResponseTimeMs;
 
+  public boolean isFastpathRequest() {
+    return isFastpathRequest;
+  }
+
+  private boolean isFastpathRequest = false;
+  //private com.microsoft.abfs.Fastpath fastPathClient = null;
+  private AbfsRestOperationType opType;
+  private List<AbfsHttpHeader> requestHeaders;
+  private AuthType authType;
+  private String authToken;
+
   public static AbfsHttpOperation getAbfsHttpOperationWithFixedResult(
       final URL url,
       final String method,
@@ -110,6 +121,7 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
     this.statusCode = httpStatus;
   }
 
+  // TODO - what this means for fastpath
   protected  HttpURLConnection getConnection() {
     return connection;
   }
@@ -232,6 +244,59 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
     return sb.toString();
   }
 
+  public AbfsHttpOperation(final AbfsRestOperationType opType,
+      final URL url,
+      final String method,
+      final AuthType authType,
+      final String authToken,
+      List<AbfsHttpHeader> requestHeaders) throws IOException {
+
+    this.opType = opType;
+    this.isTraceEnabled = LOG.isTraceEnabled();
+    this.url = url;
+    this.method = method;
+    this.clientRequestId = UUID.randomUUID().toString();
+    this.isFastpathRequest = isAFastpathRequest(opType);
+    if (this.isFastpathRequest) {
+      this.authType = authType;
+      this.authToken = authToken;
+      fastPathinit(url.getPath(), url.getQuery(), requestHeaders);
+    } else {
+      init(url, method, requestHeaders);
+
+      if (authType == AuthType.OAuth) {
+        getConnection().setRequestProperty(
+            HttpHeaderConfigurations.AUTHORIZATION, authToken);
+      }
+    }
+  }
+
+  public AbfsHttpOperation(final URL url, final String method, List<AbfsHttpHeader> requestHeaders) throws IOException {
+    this.isTraceEnabled = LOG.isTraceEnabled();
+    this.url = url;
+    this.method = method;
+    this.clientRequestId = UUID.randomUUID().toString();
+
+    init(url, method, requestHeaders);
+  }
+
+  private boolean isAFastpathRequest(final AbfsRestOperationType operationType) {
+    switch (operationType) {
+    case FastpathOpen:
+    case FastpathRead:
+    case FastpathClose:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  public void fastPathinit(String requestPath, String queryParams, List<AbfsHttpHeader> requestHeaders) {
+    this.requestHeaders = requestHeaders;
+    com.microsoft.abfs.Fastpath fastPathClient = new com.microsoft.abfs.Fastpath();
+    fastPathClient.testAbfsdriverToFastpathJar(); // ==> load lib worked
+  }
+
   /**
    * Initializes a new HTTP request and opens the connection.
    *
@@ -241,13 +306,8 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
    *
    * @throws IOException if an error occurs.
    */
-  public AbfsHttpOperation(final URL url, final String method, final List<AbfsHttpHeader> requestHeaders)
+  public void init(final URL url, final String method, List<AbfsHttpHeader> requestHeaders)
       throws IOException {
-    this.isTraceEnabled = LOG.isTraceEnabled();
-    this.url = url;
-    this.method = method;
-    this.clientRequestId = UUID.randomUUID().toString();
-
     this.connection = openConnection();
     if (this.connection instanceof HttpsURLConnection) {
       HttpsURLConnection secureConn = (HttpsURLConnection) this.connection;
@@ -267,6 +327,23 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
     }
 
     this.connection.setRequestProperty(HttpHeaderConfigurations.X_MS_CLIENT_REQUEST_ID, clientRequestId);
+  }
+
+  public java.util.Map<String, java.util.List<String>> getRequestHeaders() {
+    if (isFastpathRequest) {
+      java.util.Map<String, java.util.List<String>> headers = new java.util.HashMap<String, java.util.List<String>>();
+      for(AbfsHttpHeader abfsHeader : this.requestHeaders) {
+        headers.put(abfsHeader.getName(),
+            java.util.Collections.singletonList(abfsHeader.getValue()));
+      }
+
+      headers.put(HttpHeaderConfigurations.X_MS_CLIENT_REQUEST_ID, java.util.Collections.singletonList(this.clientRequestId));
+
+      return headers;
+    }
+    else {
+      return getConnection().getRequestProperties();
+    }
   }
 
    /**
@@ -310,6 +387,64 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
     }
   }
 
+  private void processFastpathRequest(final byte[] buffer, final int buffOffset) throws IOException {
+    switch (this.opType) {
+    case FastpathOpen:
+      long startTime = System.nanoTime();
+      processFastpathOpenResponse();
+      this.recvResponseTimeMs = elapsedTimeMs(startTime);
+      break;
+    case FastpathRead:
+      startTime = System.nanoTime();
+      processFastpathReadResponse(buffer, buffOffset);
+      this.recvResponseTimeMs = elapsedTimeMs(startTime);
+    case FastpathClose:
+      return;
+    default:
+      throw new IOException("Invalid state");
+    }
+  }
+
+  private void setStatusFromFastpathResponse(com.microsoft.abfs.FastpathErrorStatus errStatus) {
+//    this.statusCode = errStatus.getHttpStatusCode();
+//    this.statusDescription = String.valueOf(errStatus.getHttpStatusCode());
+//    this.storageErrorCode = String.valueOf(errStatus.getStoreErrorCode());
+//    this.storageErrorMessage = this.statusCode + "-" + this.storageErrorCode;
+  }
+
+  private void processFastpathOpenResponse() {
+    com.microsoft.abfs.Fastpath fastPathClient = new com.microsoft.abfs.Fastpath();
+    com.microsoft.abfs.FastpathOpenResponse oResp = fastPathClient.open();
+    System.out.println(oResp.getClientRequestIdentifier());
+    System.out.println(oResp.getServerActivityId());
+    System.out.println(oResp.getFileLength());
+    setStatusFromFastpathResponse(oResp.getFastpathErrorStatus());
+  }
+
+  private void processFastpathReadResponse(final byte[] buffer,
+      final int buffOffset) throws IOException {
+    com.microsoft.abfs.Fastpath fastPathClient = new com.microsoft.abfs.Fastpath();
+    com.microsoft.abfs.FastpathReadRequest readReq = new com.microsoft.abfs.FastpathReadRequest();
+    fastPathClient.read(readReq);
+    com.microsoft.abfs.FastpathReadResponse readResp = fastPathClient.read(this.authType.name(), this.authToken, this.url,
+        buffer, buffOffset, getRequestHeaders());
+    setStatusFromFastpathResponse(readResp.getErrorStatus());
+
+    if (readResp != null) {
+//    if ((readResp != null) ||
+//        ((readResp.getErrorStatus().getHttpStatusCode() == 200) ||
+//            (readResp.getErrorStatus().getHttpStatusCode() == 201))) {
+      // buffer should already have the data.
+      this.bytesReceived = readResp.getBytesRead();
+      System.out.println("AbfsHttpOperation:: buffer = " + new String(buffer));
+      return;
+    }
+
+    // this is unexpected, throw exception
+    throw new IOException("Fastpath read response found null");
+
+  }
+
   /**
    * Gets and processes the HTTP response.
    *
@@ -319,7 +454,13 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
    *
    * @throws IOException if an error occurs.
    */
-  public void processResponse(final byte[] buffer, final int offset, final int length) throws IOException {
+  public void processResponse(byte[] buffer, final int offset, final int length) throws IOException {
+
+    if (isFastpathRequest) {// && this.opType == AbfsRestOperationType.ReadFile) {
+      //processFastpathReadResponse(buffer, offset, length);
+      processFastpathRequest(buffer, offset);
+      return;
+    }
 
     // get the response
     long startTime = 0;
@@ -403,7 +544,6 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
       }
     }
   }
-
 
   /**
    * Open the HTTP connection.

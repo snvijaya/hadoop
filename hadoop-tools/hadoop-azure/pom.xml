@@ -169,6 +169,13 @@
     </dependency>
 
     <dependency>
+      <groupId>com.microsoft</groupId>
+      <artifactId>fastpath-java</artifactId>
+      <scope>compile</scope>
+      <version>1.0-SNAPSHOT</version>
+    </dependency>
+
+    <dependency>
       <groupId>org.apache.hadoop.thirdparty</groupId>
       <artifactId>hadoop-shaded-guava</artifactId>
     </dependency>

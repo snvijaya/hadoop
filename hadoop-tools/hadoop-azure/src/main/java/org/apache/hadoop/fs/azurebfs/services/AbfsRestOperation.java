@@ -91,6 +91,10 @@ public class AbfsRestOperation {
     return (retryCount > 0);
   }
 
+  public boolean WasProcessedOverFastpath() {
+    return result.isFastpathRequest();
+  }
+
   String getSasToken() {
     return sasToken;
   }
@@ -210,6 +214,7 @@ public class AbfsRestOperation {
   private boolean executeHttpOperation(final int retryCount) throws AzureBlobFileSystemException {
     AbfsHttpOperation httpOperation = null;
     try {
+      String authToken = "";
       // initialize the HTTP request and open the connection
       httpOperation = new AbfsHttpOperation(url, method, requestHeaders);
       incrementCounter(AbfsStatistic.CONNECTIONS_MADE, 1);
@@ -218,11 +223,17 @@ public class AbfsRestOperation {
         case Custom:
         case OAuth:
           LOG.debug("Authenticating request with OAuth2 access token");
-          httpOperation.getConnection().setRequestProperty(HttpHeaderConfigurations.AUTHORIZATION,
-              client.getAccessToken());
+          httpOperation = new AbfsHttpOperation(operationType, url, method,
+              client.getAuthType(), client.getAccessToken(), requestHeaders);
+
+
+//          httpOperation.getConnection().setRequestProperty(HttpHeaderConfigurations.AUTHORIZATION,
+//              client.getAccessToken());
           break;
         case SAS:
           // do nothing; the SAS token should already be appended to the query string
+          httpOperation = new AbfsHttpOperation(operationType, url, method,
+              client.getAuthType(), "", requestHeaders);
           break;
         case SharedKey:
           // sign the HTTP request
@@ -235,8 +246,11 @@ public class AbfsRestOperation {
       }
 
       // dump the headers
+//      AbfsIoUtils.dumpHeadersToDebugLog("Request Headers",
+//          httpOperation.getConnection().getRequestProperties());
       AbfsIoUtils.dumpHeadersToDebugLog("Request Headers",
-          httpOperation.getConnection().getRequestProperties());
+          httpOperation.getRequestHeaders());
+
       AbfsClientThrottlingIntercept.sendingRequest(operationType, abfsCounters);
 
       if (hasRequestBody) {

@@ -71,6 +71,7 @@ public class AbfsRestOperation {
   private AbfsCounters abfsCounters;
 
   private String fastpathFileHandle;
+  private boolean isRESTFallback = false;
 
   public AbfsHttpOperation getResult() {
     return result;
@@ -101,6 +102,9 @@ public class AbfsRestOperation {
     this.fastpathFileHandle = fastpathFileHandle;
   }
 
+  public void updateClientReqIdToIndicateRESTFallback() {
+    isRESTFallback = true;
+  }
   /**
    * Initializes a new REST operation.
    *
@@ -233,6 +237,7 @@ public class AbfsRestOperation {
             ((AbfsHttpConnection) httpOperation).getConnection()
                 .setRequestProperty(HttpHeaderConfigurations.AUTHORIZATION,
                     client.getAccessToken());
+             httpOperation.updateClientReqIdToIndicateRESTFallback(isRESTFallback);
           }
           break;
         case SAS:
@@ -318,6 +323,17 @@ public class AbfsRestOperation {
     return true;
   }
 
+  public boolean isAFastpathRequest() {
+    switch (operationType) {
+    case FastpathOpen:
+    case FastpathRead:
+    case FastpathClose:
+      return true;
+    default:
+      return false;
+    }
+  }
+
   /**
    * Incrementing Abfs counters with a long value.
    *
@@ -327,17 +343,6 @@ public class AbfsRestOperation {
   private void incrementCounter(AbfsStatistic statistic, long value) {
     if (abfsCounters != null) {
       abfsCounters.incrementCounter(statistic, value);
-    }
-  }
-
-  private boolean isAFastpathRequest() {
-    switch (operationType) {
-    case FastpathOpen:
-    case FastpathRead:
-    case FastpathClose:
-      return true;
-    default:
-      return false;
     }
   }
 }

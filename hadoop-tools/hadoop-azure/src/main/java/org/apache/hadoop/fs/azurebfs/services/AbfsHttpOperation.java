@@ -288,6 +288,12 @@ public abstract class AbfsHttpOperation implements AbfsPerfLoggable {
     return this.maskedEncodedUrl;
   }
 
+  public void updateClientReqIdToIndicateRESTFallback(boolean isRESTFallback) {
+    if (isRESTFallback) {
+      clientRequestId += "_FPBK";
+    }
+  }
+
   public static AbfsHttpOperation getAbfsHttpOperationWithFixedResult(
       final URL url,
       final String method,

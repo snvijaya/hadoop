@@ -30,9 +30,10 @@ public class ReadRequestParameters {
   private final long storeFilePosition;
   private final int bufferOffset;
   private final int readLength;
-  private final ReadRequestParameters.Mode mode;
-  private String eTag;
-  private String fastpathFileHandle;
+  private ReadRequestParameters.Mode mode;
+  private final String eTag;
+  private final String fastpathFileHandle;
+  private boolean isRESTfallback;
 
 
   public ReadRequestParameters(final ReadRequestParameters.Mode mode,
@@ -40,13 +41,15 @@ public class ReadRequestParameters {
       final int bufferOffset,
       final int readLength,
       final String eTag,
-      final String fastpathFileHandle) {
+      final String fastpathFileHandle,
+      final boolean isRESTfallback) {
     this.mode = mode;
     this.storeFilePosition = storeFilePosition;
     this.bufferOffset = bufferOffset;
     this.readLength = readLength;
     this.eTag = eTag;
     this.fastpathFileHandle = fastpathFileHandle;
+    this.isRESTfallback = isRESTfallback;
   }
 
   public long getStoreFilePosition() {
@@ -71,5 +74,13 @@ public class ReadRequestParameters {
 
   public ReadRequestParameters.Mode getMode() {
     return this.mode;
+  }
+
+  public void setMode(final Mode mode) {
+    this.mode = mode;
+  }
+
+  public void setRESTfallback(final boolean RESTfallback) {
+    isRESTfallback = RESTfallback;
   }
 }

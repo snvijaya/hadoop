@@ -120,6 +120,10 @@ public class AbfsConfiguration{
       DefaultValue = DEFAULT_READ_BUFFER_SIZE)
   private int readBufferSize;
 
+  @BooleanConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_FASTPATH_ENABLE,
+      DefaultValue = DEFAULT_FASTPATH_ENABLE)
+  private boolean enableFastpath;
+
   @IntegerConfigurationValidatorAnnotation(ConfigurationKey = AZURE_MIN_BACKOFF_INTERVAL,
       DefaultValue = DEFAULT_MIN_BACKOFF_INTERVAL)
   private int minBackoffInterval;
@@ -560,6 +564,8 @@ public class AbfsConfiguration{
   public int getReadBufferSize() {
     return this.readBufferSize;
   }
+
+  public boolean isFastpathEnabled() { return this.enableFastpath; }
 
   public int getMinBackoffIntervalMilliseconds() {
     return this.minBackoffInterval;

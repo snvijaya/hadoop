@@ -123,7 +123,7 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     this.path = path;
     this.contentLength = contentLength;
     this.bufferSize = abfsInputStreamContext.getReadBufferSize();
-    this.readAheadQueueDepth = 0; //abfsInputStreamContext.getReadAheadQueueDepth();
+    this.readAheadQueueDepth = abfsInputStreamContext.getReadAheadQueueDepth();
     this.tolerateOobAppends = abfsInputStreamContext.isTolerateOobAppends();
     this.eTag = eTag;
     this.readAheadEnabled = true;
@@ -206,13 +206,6 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     } else {
       return (b[0] & 0xFF);
     }
-
-//    fastPath.testAbfsdriverToFastpathJar(); // ==> load lib worked
-//    com.microsoft.abfs.FastpathOpenResponse oResp = fastPath.open();
-//    System.out.println(oResp.getClientRequestIdentifier());
-//    System.out.println(oResp.getServerActivityId());
-//    System.out.println(oResp.getFileLength());
-
   }
 
   @Override
@@ -285,8 +278,6 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
       if (buffer == null) {
         LOG.debug("created new buffer size {}", bufferSize);
         buffer = new byte[bufferSize];
-        byte allb = 'b';
-        java.util.Arrays.fill(buffer, allb);
       }
 
       if (alwaysReadBufferSize) {
@@ -514,9 +505,11 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
       LOG.trace("Trigger client.read for path={} position={} offset={} length={}", path, position, offset, length);
       ReadRequestParameters reqParams = new ReadRequestParameters(
           (isFastPathEnabled ? Mode.FASTPATH_CONNECTION_MODE : Mode.HTTP_CONNECTION_MODE),
-          position, offset, length, eTag, fastpathFileHandle,isOnRESTFallback());
+          position, offset, length,
+          tolerateOobAppends ? "*" : eTag,
+          fastpathFileHandle,isOnRESTFallback());
       op = IOStatisticsBinding.trackDuration((IOStatisticsStore) ioStatistics,
-        org.apache.hadoop.fs.statistics.StoreStatisticNames.ACTION_HTTP_GET_REQUEST,
+        StoreStatisticNames.ACTION_HTTP_GET_REQUEST,
           () -> client.read(path, b, cachedSasToken.get(), reqParams));
 
       cachedSasToken.update(op.getSasToken());

@@ -254,8 +254,6 @@ public class AbfsRestOperation {
       }
 
       // dump the headers
-//      AbfsIoUtils.dumpHeadersToDebugLog("Request Headers",
-//          httpOperation.getConnection().getRequestProperties());
       AbfsIoUtils.dumpHeadersToDebugLog("Request Headers",
           httpOperation.getRequestHeaders());
 

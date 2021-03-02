@@ -75,6 +75,7 @@ public class MockDelegationSASTokenProvider implements SASTokenProvider {
 
   private byte[] getUserDelegationKey(String accountName, String appID, String appSecret,
       String sktid, String skt, String ske, String skv) throws IOException {
+
     String method = "POST";
     String account = accountName.substring(0, accountName.indexOf(AbfsHttpConstants.DOT));
 

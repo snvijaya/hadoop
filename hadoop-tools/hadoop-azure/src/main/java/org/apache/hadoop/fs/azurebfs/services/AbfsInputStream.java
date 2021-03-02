@@ -94,6 +94,12 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
 
   private final AbfsInputStreamContext context;
 
+  String handleKey;
+
+  public String getHandleKey() {
+    return handleKey;
+  }
+
   public AbfsInputStream(
           final AbfsClient client,
           final Statistics statistics,
@@ -127,7 +133,7 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
 
   private boolean checkFastpathStatus() {
     try {
-      client.fastPathOpen(path, eTag);
+      this.handleKey = ((AbfsFastpathConnection)client.fastPathOpen(path, eTag).getResult()).getFastpathFileHandle();
     } catch (AzureBlobFileSystemException e) {
       LOG.debug("Fastpath status check failed with {}", e);
       return false;
@@ -141,7 +147,7 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
   }
 
 //  private com.microsoft.abfs.Fastpath fastPath = new com.microsoft.abfs.Fastpath();
-ela
+
   @Override
   public int read() throws IOException {
     byte[] b = new byte[1];
@@ -456,7 +462,7 @@ ela
     AbfsPerfTracker tracker = client.getAbfsPerfTracker();
     try (AbfsPerfInfo perfInfo = new AbfsPerfInfo(tracker, "readRemote", "read")) {
       LOG.trace("Trigger client.read for path={} position={} offset={} length={}", path, position, offset, length);
-      op = client.read(path, position, b, offset, length, tolerateOobAppends ? "*" : eTag, cachedSasToken.get(), this.isFastPathEnabled);
+      op = client.read(path, position, b, offset, length, tolerateOobAppends ? "*" : eTag, cachedSasToken.get(), this.handleKey);
       cachedSasToken.update(op.getSasToken());
       if (streamStatistics != null) {
         streamStatistics.remoteReadOperation();

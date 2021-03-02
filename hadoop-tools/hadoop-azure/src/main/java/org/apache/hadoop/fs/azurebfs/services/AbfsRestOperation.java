@@ -24,17 +24,17 @@ import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.List;
 
-import org.apache.hadoop.thirdparty.com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.fs.azurebfs.AbfsStatistic;
 import org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants;
+import org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AbfsRestOperationException;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AzureBlobFileSystemException;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.InvalidAbfsRestOperationException;
-import org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations;
 import org.apache.hadoop.fs.azurebfs.oauth2.AzureADAuthenticator.HttpException;
+import org.apache.hadoop.thirdparty.com.google.common.annotations.VisibleForTesting;
 
 /**
  * The AbfsRestOperation for Rest AbfsClient.
@@ -70,6 +70,8 @@ public class AbfsRestOperation {
   private AbfsHttpOperation result;
   private AbfsCounters abfsCounters;
 
+  private String fastpathFileHandle;
+
   public AbfsHttpOperation getResult() {
     return result;
   }
@@ -89,10 +91,6 @@ public class AbfsRestOperation {
 
   public boolean isARetriedRequest() {
     return (retryCount > 0);
-  }
-
-  public boolean WasProcessedOverFastpath() {
-    return result.isFastpathRequest();
   }
 
   String getSasToken() {
@@ -171,6 +169,24 @@ public class AbfsRestOperation {
     this.abfsCounters = client.getAbfsCounters();
   }
 
+  AbfsRestOperation(AbfsRestOperationType operationType,
+      AbfsClient client,
+      String method,
+      URL url,
+      List<AbfsHttpHeader> requestHeaders,
+      byte[] buffer,
+      int bufferOffset,
+      int bufferLength,
+      String sasToken,
+      String fastpathFilehandle) {
+    this(operationType, client, method, url, requestHeaders, sasToken);
+    this.buffer = buffer;
+    this.bufferOffset = bufferOffset;
+    this.bufferLength = bufferLength;
+    this.abfsCounters = client.getAbfsCounters();
+    this.fastpathFileHandle = fastpathFilehandle;
+  }
+
   /**
    * Executes the REST operation with retry, by issuing one or more
    * HTTP operations.
@@ -216,31 +232,32 @@ public class AbfsRestOperation {
     try {
       String authToken = "";
       // initialize the HTTP request and open the connection
-      httpOperation = new AbfsHttpOperation(url, method, requestHeaders);
+      httpOperation = new AbfsHttpConnection(url, method, requestHeaders);
       incrementCounter(AbfsStatistic.CONNECTIONS_MADE, 1);
 
       switch(client.getAuthType()) {
         case Custom:
         case OAuth:
           LOG.debug("Authenticating request with OAuth2 access token");
-          httpOperation = new AbfsHttpOperation(operationType, url, method,
-              client.getAuthType(), client.getAccessToken(), requestHeaders);
-
-
-//          httpOperation.getConnection().setRequestProperty(HttpHeaderConfigurations.AUTHORIZATION,
-//              client.getAccessToken());
+          if (isAFastpathRequest()) {
+            httpOperation = new AbfsFastpathConnection(operationType, url,
+                method,
+                client.getAuthType(), client.getAccessToken(), requestHeaders, fastpathFileHandle);
+          } else {
+            ((AbfsHttpConnection) httpOperation).getConnection()
+                .setRequestProperty(HttpHeaderConfigurations.AUTHORIZATION,
+                    client.getAccessToken());
+          }
           break;
         case SAS:
           // do nothing; the SAS token should already be appended to the query string
-          httpOperation = new AbfsHttpOperation(operationType, url, method,
-              client.getAuthType(), "", requestHeaders);
           break;
         case SharedKey:
           // sign the HTTP request
           LOG.debug("Signing request with shared key");
           // sign the HTTP request
           client.getSharedKeyCredentials().signRequest(
-              httpOperation.getConnection(),
+              ((AbfsHttpConnection)httpOperation).getConnection(),
               hasRequestBody ? bufferLength : 0);
           break;
       }
@@ -253,9 +270,9 @@ public class AbfsRestOperation {
 
       AbfsClientThrottlingIntercept.sendingRequest(operationType, abfsCounters);
 
-      if (hasRequestBody) {
+      if (!isAFastpathRequest() && hasRequestBody) {
         // HttpUrlConnection requires
-        httpOperation.sendRequest(buffer, bufferOffset, bufferLength);
+        ((AbfsHttpConnection)httpOperation).sendRequest(buffer, bufferOffset, bufferLength);
         incrementCounter(AbfsStatistic.SEND_REQUESTS, 1);
         incrementCounter(AbfsStatistic.BYTES_SENT, bufferLength);
       }
@@ -324,6 +341,17 @@ public class AbfsRestOperation {
   private void incrementCounter(AbfsStatistic statistic, long value) {
     if (abfsCounters != null) {
       abfsCounters.incrementCounter(statistic, value);
+    }
+  }
+
+  private boolean isAFastpathRequest() {
+    switch (operationType) {
+    case FastpathOpen:
+    case FastpathRead:
+    case FastpathClose:
+      return true;
+    default:
+      return false;
     }
   }
 }

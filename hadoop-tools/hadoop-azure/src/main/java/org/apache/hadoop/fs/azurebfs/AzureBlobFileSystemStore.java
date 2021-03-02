@@ -88,6 +88,7 @@ import org.apache.hadoop.fs.azurebfs.services.AbfsClient;
 import org.apache.hadoop.fs.azurebfs.services.AbfsClientContext;
 import org.apache.hadoop.fs.azurebfs.services.AbfsClientContextBuilder;
 import org.apache.hadoop.fs.azurebfs.services.AbfsCounters;
+import org.apache.hadoop.fs.azurebfs.services.AbfsHttpConnection;
 import org.apache.hadoop.fs.azurebfs.services.AbfsHttpOperation;
 import org.apache.hadoop.fs.azurebfs.services.AbfsInputStream;
 import org.apache.hadoop.fs.azurebfs.services.AbfsInputStreamContext;
@@ -880,7 +881,7 @@ public class AzureBlobFileSystemStore implements Closeable {
             abfsConfiguration.getListMaxResults(), continuation);
         perfInfo.registerResult(op.getResult());
         continuation = op.getResult().getResponseHeader(HttpHeaderConfigurations.X_MS_CONTINUATION);
-        ListResultSchema retrievedSchema = op.getResult().getListResultSchema();
+        ListResultSchema retrievedSchema = ((AbfsHttpConnection)op.getResult()).getListResultSchema();
         if (retrievedSchema == null) {
           throw new AbfsRestOperationException(
                   AzureServiceErrorCode.PATH_NOT_FOUND.getStatusCode(),

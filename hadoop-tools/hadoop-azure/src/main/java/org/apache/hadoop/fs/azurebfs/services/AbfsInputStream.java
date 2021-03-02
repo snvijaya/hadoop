@@ -37,6 +37,11 @@ import org.apache.hadoop.fs.StreamCapabilities;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AbfsRestOperationException;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AzureBlobFileSystemException;
 import org.apache.hadoop.fs.azurebfs.utils.CachedSASToken;
+import org.apache.hadoop.fs.statistics.IOStatistics;
+import org.apache.hadoop.fs.statistics.IOStatisticsSource;
+import org.apache.hadoop.fs.statistics.StoreStatisticNames;
+import org.apache.hadoop.fs.statistics.impl.IOStatisticsBinding;
+import org.apache.hadoop.fs.statistics.impl.IOStatisticsStore;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
@@ -48,7 +53,7 @@ import static org.apache.hadoop.util.StringUtils.toLowerCase;
  * The AbfsInputStream for AbfsClient.
  */
 public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
-        StreamCapabilities {
+        StreamCapabilities, IOStatisticsSource {
   private static final Logger LOG = LoggerFactory.getLogger(AbfsInputStream.class);
   //  Footer size is set to qualify for both ORC and parquet files
   public static final int FOOTER_SIZE = 16 * ONE_KB;
@@ -65,6 +70,14 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
   private final boolean tolerateOobAppends; // whether tolerate Oob Appends
   private final boolean readAheadEnabled; // whether enable readAhead;
   private final boolean alwaysReadBufferSize;
+  /*
+   * By default the pread API will do a seek + read as in FSInputStream.
+   * The read data will be kept in a buffer. When bufferedPreadDisabled is true,
+   * the pread API will read only the specified amount of data from the given
+   * offset and the buffer will not come into use at all.
+   * @see #read(long, byte[], int, int)
+   */
+  private final boolean bufferedPreadDisabled;
 
   private boolean firstRead = true;
   // SAS tokens can be re-used until they expire
@@ -93,6 +106,7 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
   private boolean isFastPathEnabled = false;
 
   private final AbfsInputStreamContext context;
+  private IOStatistics ioStatistics;
 
   String handleKey;
 
@@ -118,6 +132,8 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     this.readAheadEnabled = true;
     this.alwaysReadBufferSize
         = abfsInputStreamContext.shouldReadBufferSizeAlways();
+    this.bufferedPreadDisabled = abfsInputStreamContext
+        .isBufferedPreadDisabled();
     this.cachedSasToken = new CachedSASToken(
         abfsInputStreamContext.getSasTokenRenewPeriodForStreamsInSeconds());
     this.streamStatistics = abfsInputStreamContext.getStreamStatistics();
@@ -128,7 +144,9 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     // to initialize can set the readAheadBlockSize
     ReadBufferManager.setReadBufferManagerConfigs(readAheadBlockSize);
     isFastPathEnabled = checkFastpathStatus();
-    //isFastPathEnabled = false;
+    if (streamStatistics != null) {
+      ioStatistics = streamStatistics.getIOStatistics();
+    }
   }
 
   private boolean checkFastpathStatus() {
@@ -146,7 +164,40 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     return path;
   }
 
-//  private com.microsoft.abfs.Fastpath fastPath = new com.microsoft.abfs.Fastpath();
+  @Override
+  public int read(long position, byte[] buffer, int offset, int length)
+      throws IOException {
+    // When bufferedPreadDisabled = true, this API does not use any shared buffer,
+    // cursor position etc. So this is implemented as NOT synchronized. HBase
+    // kind of random reads on a shared file input stream will greatly get
+    // benefited by such implementation.
+    // Strict close check at the begin of the API only not for the entire flow.
+    synchronized (this) {
+      if (closed) {
+        throw new IOException(FSExceptionMessages.STREAM_IS_CLOSED);
+      }
+    }
+    LOG.debug("pread requested offset = {} len = {} bufferedPreadDisabled = {}",
+        offset, length, bufferedPreadDisabled);
+    if (!bufferedPreadDisabled) {
+      return super.read(position, buffer, offset, length);
+    }
+    validatePositionedReadArgs(position, buffer, offset, length);
+    if (length == 0) {
+      return 0;
+    }
+    if (streamStatistics != null) {
+      streamStatistics.readOperationStarted();
+    }
+    int bytesRead = readRemote(position, buffer, offset, length);
+    if (statistics != null) {
+      statistics.incrementBytesRead(bytesRead);
+    }
+    if (streamStatistics != null) {
+      streamStatistics.bytesRead(bytesRead);
+    }
+    return bytesRead;
+  }
 
   @Override
   public int read() throws IOException {
@@ -181,7 +232,7 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     int lastReadBytes;
     int totalReadBytes = 0;
     if (streamStatistics != null) {
-      streamStatistics.readOperationStarted(off, len);
+      streamStatistics.readOperationStarted();
     }
     incrementReadOps();
     do {
@@ -462,7 +513,10 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     AbfsPerfTracker tracker = client.getAbfsPerfTracker();
     try (AbfsPerfInfo perfInfo = new AbfsPerfInfo(tracker, "readRemote", "read")) {
       LOG.trace("Trigger client.read for path={} position={} offset={} length={}", path, position, offset, length);
-      op = client.read(path, position, b, offset, length, tolerateOobAppends ? "*" : eTag, cachedSasToken.get(), this.handleKey);
+      op = IOStatisticsBinding.trackDuration((IOStatisticsStore) ioStatistics,
+          StoreStatisticNames.ACTION_HTTP_GET_REQUEST,
+          () -> client.read(path, position, b, offset, length,
+              tolerateOobAppends ? "*" : eTag, cachedSasToken.get(), this.handleKey));
       cachedSasToken.update(op.getSasToken());
       if (streamStatistics != null) {
         streamStatistics.remoteReadOperation();
@@ -723,6 +777,11 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
   @VisibleForTesting
   public boolean shouldAlwaysReadBufferSize() {
     return alwaysReadBufferSize;
+  }
+
+  @Override
+  public IOStatistics getIOStatistics() {
+    return ioStatistics;
   }
 
   /**

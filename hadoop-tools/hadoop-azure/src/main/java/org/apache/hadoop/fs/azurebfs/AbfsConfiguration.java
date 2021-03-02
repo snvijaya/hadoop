@@ -100,6 +100,10 @@ public class AbfsConfiguration{
       DefaultValue = DEFAULT_WRITE_BUFFER_SIZE)
   private int writeBufferSize;
 
+  @BooleanConfigurationValidatorAnnotation(ConfigurationKey = AZURE_ENABLE_SMALL_WRITE_OPTIMIZATION,
+      DefaultValue = DEFAULT_AZURE_ENABLE_SMALL_WRITE_OPTIMIZATION)
+  private boolean enableSmallWriteOptimization;
+
   @BooleanConfigurationValidatorAnnotation(
       ConfigurationKey = AZURE_READ_SMALL_FILES_COMPLETELY,
       DefaultValue = DEFAULT_READ_SMALL_FILES_COMPLETELY)
@@ -270,6 +274,10 @@ public class AbfsConfiguration{
       MinValue = 0,
       DefaultValue = DEFAULT_SAS_TOKEN_RENEW_PERIOD_FOR_STREAMS_IN_SECONDS)
   private long sasTokenRenewPeriodForStreamsInSeconds;
+
+  @BooleanConfigurationValidatorAnnotation(ConfigurationKey =
+      FS_AZURE_ENABLE_ABFS_LIST_ITERATOR, DefaultValue = DEFAULT_ENABLE_ABFS_LIST_ITERATOR)
+  private boolean enableAbfsListIterator;
 
   public AbfsConfiguration(final Configuration rawConfig, String accountName)
       throws IllegalAccessException, InvalidConfigurationValueException, IOException {
@@ -535,6 +543,10 @@ public class AbfsConfiguration{
 
   public int getWriteBufferSize() {
     return this.writeBufferSize;
+  }
+
+  public boolean isSmallWriteOptimizationEnabled() {
+    return this.enableSmallWriteOptimization;
   }
 
   public boolean readSmallFilesCompletely() {
@@ -888,6 +900,10 @@ public class AbfsConfiguration{
     return this.maxWriteRequestsToQueue;
   }
 
+  public boolean enableAbfsListIterator() {
+    return this.enableAbfsListIterator;
+  }
+
   @VisibleForTesting
   void setReadBufferSize(int bufferSize) {
     this.readBufferSize = bufferSize;
@@ -951,6 +967,11 @@ public class AbfsConfiguration{
   @VisibleForTesting
   public void setOptimizeFooterRead(boolean optimizeFooterRead) {
     this.optimizeFooterRead = optimizeFooterRead;
+  }
+
+  @VisibleForTesting
+  public void setEnableAbfsListIterator(boolean enableAbfsListIterator) {
+    this.enableAbfsListIterator = enableAbfsListIterator;
   }
 
 }

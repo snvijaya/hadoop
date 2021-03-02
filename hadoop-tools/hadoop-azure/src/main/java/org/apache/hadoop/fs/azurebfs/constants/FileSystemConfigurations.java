@@ -56,6 +56,7 @@ public final class FileSystemConfigurations {
   // Default upload and download buffer size
   public static final int DEFAULT_WRITE_BUFFER_SIZE = 8 * ONE_MB;  // 8 MB
   public static final int APPENDBLOB_MAX_WRITE_BUFFER_SIZE = 4 * ONE_MB;  // 4 MB
+  public static final boolean DEFAULT_AZURE_ENABLE_SMALL_WRITE_OPTIMIZATION = false;
   public static final int DEFAULT_READ_BUFFER_SIZE = 4 * ONE_MB;  // 4 MB
   public static final boolean DEFAULT_READ_SMALL_FILES_COMPLETELY = false;
   public static final boolean DEFAULT_OPTIMIZE_FOOTER_READ = false;
@@ -99,6 +100,8 @@ public final class FileSystemConfigurations {
 
   public static final boolean DEFAULT_DELETE_CONSIDERED_IDEMPOTENT = true;
   public static final int DEFAULT_CLOCK_SKEW_WITH_SERVER_IN_MS = 5 * 60 * 1000; // 5 mins
+
+  public static final boolean DEFAULT_ENABLE_ABFS_LIST_ITERATOR = true;
 
   private FileSystemConfigurations() {}
 }

@@ -183,6 +183,20 @@ public class DataNodeMetrics {
   @Metric private MutableRate checkAndUpdateOp;
   @Metric private MutableRate updateReplicaUnderRecoveryOp;
 
+  @Metric MutableCounterLong packetsReceived;
+  @Metric MutableCounterLong packetsSlowWriteToMirror;
+  @Metric MutableCounterLong packetsSlowWriteToDisk;
+  @Metric MutableCounterLong packetsSlowWriteToOsCache;
+
+  @Metric("Number of replaceBlock ops between" +
+      " storage types on same host with local copy")
+  private MutableCounterLong replaceBlockOpOnSameHost;
+  @Metric("Number of replaceBlock ops between" +
+      " storage types on same disk mount with same disk tiering feature")
+  private MutableCounterLong replaceBlockOpOnSameMount;
+  @Metric("Number of replaceBlock ops to another node")
+  private MutableCounterLong replaceBlockOpToOtherHost;
+
   final MetricsRegistry registry = new MetricsRegistry("datanode");
   @Metric("Milliseconds spent on calling NN rpc")
   private MutableRatesWithAggregation
@@ -690,4 +704,33 @@ public class DataNodeMetrics {
   public void addUpdateReplicaUnderRecoveryOp(long latency) {
     updateReplicaUnderRecoveryOp.add(latency);
   }
+
+  public void incrPacketsReceived() {
+    packetsReceived.incr();
+  }
+
+  public void incrPacketsSlowWriteToMirror() {
+    packetsSlowWriteToMirror.incr();
+  }
+
+  public void incrPacketsSlowWriteToDisk() {
+    packetsSlowWriteToDisk.incr();
+  }
+
+  public void incrPacketsSlowWriteToOsCache() {
+    packetsSlowWriteToOsCache.incr();
+  }
+
+  public void incrReplaceBlockOpOnSameMount() {
+    replaceBlockOpOnSameMount.incr();
+  }
+
+  public void incrReplaceBlockOpOnSameHost() {
+    replaceBlockOpOnSameHost.incr();
+  }
+
+  public void incrReplaceBlockOpToOtherHost() {
+    replaceBlockOpToOtherHost.incr();
+  }
+
 }

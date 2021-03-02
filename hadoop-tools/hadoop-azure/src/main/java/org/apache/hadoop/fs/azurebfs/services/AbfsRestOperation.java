@@ -97,6 +97,10 @@ public class AbfsRestOperation {
     return sasToken;
   }
 
+  public void setFastpathFileHandle(String fastpathFileHandle) {
+    this.fastpathFileHandle = fastpathFileHandle;
+  }
+
   /**
    * Initializes a new REST operation.
    *
@@ -167,24 +171,6 @@ public class AbfsRestOperation {
     this.bufferOffset = bufferOffset;
     this.bufferLength = bufferLength;
     this.abfsCounters = client.getAbfsCounters();
-  }
-
-  AbfsRestOperation(AbfsRestOperationType operationType,
-      AbfsClient client,
-      String method,
-      URL url,
-      List<AbfsHttpHeader> requestHeaders,
-      byte[] buffer,
-      int bufferOffset,
-      int bufferLength,
-      String sasToken,
-      String fastpathFilehandle) {
-    this(operationType, client, method, url, requestHeaders, sasToken);
-    this.buffer = buffer;
-    this.bufferOffset = bufferOffset;
-    this.bufferLength = bufferLength;
-    this.abfsCounters = client.getAbfsCounters();
-    this.fastpathFileHandle = fastpathFilehandle;
   }
 
   /**

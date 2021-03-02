@@ -36,6 +36,8 @@ import org.apache.hadoop.fs.FileSystem.Statistics;
 import org.apache.hadoop.fs.StreamCapabilities;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AbfsRestOperationException;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AzureBlobFileSystemException;
+import org.apache.hadoop.fs.azurebfs.contracts.services.ReadRequestParameters;
+import org.apache.hadoop.fs.azurebfs.contracts.services.ReadRequestParameters.Mode;
 import org.apache.hadoop.fs.azurebfs.utils.CachedSASToken;
 import org.apache.hadoop.fs.statistics.IOStatistics;
 import org.apache.hadoop.fs.statistics.IOStatisticsSource;
@@ -104,15 +106,10 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
   private long bytesFromReadAhead; // bytes read from readAhead; for testing
   private long bytesFromRemoteRead; // bytes read remotely; for testing
   private boolean isFastPathEnabled = false;
+  private String fastpathFileHandle = null;
 
   private final AbfsInputStreamContext context;
   private IOStatistics ioStatistics;
-
-  String handleKey;
-
-  public String getHandleKey() {
-    return handleKey;
-  }
 
   public AbfsInputStream(
           final AbfsClient client,
@@ -151,7 +148,7 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
 
   private boolean checkFastpathStatus() {
     try {
-      this.handleKey = ((AbfsFastpathConnection)client.fastPathOpen(path, eTag).getResult()).getFastpathFileHandle();
+      this.fastpathFileHandle = ((AbfsFastpathConnection)client.fastPathOpen(path, eTag).getResult()).getFastpathFileHandle();
     } catch (AzureBlobFileSystemException e) {
       LOG.debug("Fastpath status check failed with {}", e);
       return false;
@@ -513,10 +510,17 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     AbfsPerfTracker tracker = client.getAbfsPerfTracker();
     try (AbfsPerfInfo perfInfo = new AbfsPerfInfo(tracker, "readRemote", "read")) {
       LOG.trace("Trigger client.read for path={} position={} offset={} length={}", path, position, offset, length);
+      ReadRequestParameters reqParams = new ReadRequestParameters(
+          (isFastPathEnabled ? Mode.FASTPATH_CONNECTION_MODE : Mode.HTTP_CONNECTION_MODE),
+          position, offset, length, eTag, fastpathFileHandle);
+      // TODO cleanup
+//      op = IOStatisticsBinding.trackDuration((IOStatisticsStore) ioStatistics,
+//          StoreStatisticNames.ACTION_HTTP_GET_REQUEST,
+//          () -> client.read(path, position, b, offset, length,
+//              tolerateOobAppends ? "*" : eTag, cachedSasToken.get(), this.fastpathFileHandle));
       op = IOStatisticsBinding.trackDuration((IOStatisticsStore) ioStatistics,
-          StoreStatisticNames.ACTION_HTTP_GET_REQUEST,
-          () -> client.read(path, position, b, offset, length,
-              tolerateOobAppends ? "*" : eTag, cachedSasToken.get(), this.handleKey));
+        org.apache.hadoop.fs.statistics.StoreStatisticNames.ACTION_HTTP_GET_REQUEST,
+          () -> client.read(path, b, cachedSasToken.get(), reqParams));
       cachedSasToken.update(op.getSasToken());
       if (streamStatistics != null) {
         streamStatistics.remoteReadOperation();
@@ -678,6 +682,15 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
 
   @Override
   public synchronized void close() throws IOException {
+    try {
+      if (isFastPathEnabled) {
+        client.fastPathClose(path, eTag, fastpathFileHandle);
+      }
+    } catch (Exception ex) {
+      LOG.debug("Fastpath close failed");
+      // ignore any close failure
+    }
+
     closed = true;
     buffer = null; // de-reference the buffer so it can be GC'ed sooner
     LOG.debug("Closing {}", this);

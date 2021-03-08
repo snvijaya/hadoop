@@ -145,8 +145,8 @@ public class AbfsFastpathConnection extends AbfsHttpOperation {
     if (openResponse.isSuccessResponse()) {
       System.out.println(openResponse.getClientRequestId());
       System.out.println(openResponse.getRequestId());
-      System.out.println(openResponse.getHandleKey());
-      this.fastpathFileHandle = openResponse.getHandleKey();
+      System.out.println(openResponse.getFastpathFileHandle());
+      this.fastpathFileHandle = openResponse.getFastpathFileHandle();
     }
   }
 

@@ -100,7 +100,11 @@ public class AbfsHttpConnection extends AbfsHttpOperation {
   }
 
   public java.util.Map<String, java.util.List<String>> getRequestHeaders() {
-      return getConnection().getRequestProperties();
+  return getConnection().getRequestProperties();
+  }
+
+  public String getRequestHeader(String header) {
+      return getConnection().getRequestProperty(header);
   }
 
   /**

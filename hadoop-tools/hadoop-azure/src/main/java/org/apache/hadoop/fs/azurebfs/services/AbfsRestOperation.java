@@ -221,10 +221,6 @@ public class AbfsRestOperation {
     AbfsHttpOperation httpOperation = null;
     try {
       String authToken = "";
-      // initialize the HTTP request and open the connection
-      httpOperation = new AbfsHttpConnection(url, method, requestHeaders);
-      incrementCounter(AbfsStatistic.CONNECTIONS_MADE, 1);
-
       switch(client.getAuthType()) {
         case Custom:
         case OAuth:
@@ -234,6 +230,8 @@ public class AbfsRestOperation {
                 method,
                 client.getAuthType(), client.getAccessToken(), requestHeaders, fastpathFileHandle);
           } else {
+            httpOperation  = new AbfsHttpConnection(url, method, requestHeaders);
+            incrementCounter(AbfsStatistic.CONNECTIONS_MADE, 1);
             ((AbfsHttpConnection) httpOperation).getConnection()
                 .setRequestProperty(HttpHeaderConfigurations.AUTHORIZATION,
                     client.getAccessToken());
@@ -241,9 +239,13 @@ public class AbfsRestOperation {
           }
           break;
         case SAS:
+          httpOperation  = new AbfsHttpConnection(url, method, requestHeaders);
+          incrementCounter(AbfsStatistic.CONNECTIONS_MADE, 1);
           // do nothing; the SAS token should already be appended to the query string
           break;
         case SharedKey:
+          httpOperation  = new AbfsHttpConnection(url, method, requestHeaders);
+          incrementCounter(AbfsStatistic.CONNECTIONS_MADE, 1);
           // sign the HTTP request
           LOG.debug("Signing request with shared key");
           // sign the HTTP request

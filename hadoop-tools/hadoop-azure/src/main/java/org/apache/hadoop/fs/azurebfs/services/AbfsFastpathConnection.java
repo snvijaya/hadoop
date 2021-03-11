@@ -27,14 +27,12 @@ import com.microsoft.fastpath.requestParameters.AccessTokenType;
 import com.microsoft.fastpath.requestParameters.FastpathCloseRequestParams;
 import com.microsoft.fastpath.requestParameters.FastpathOpenRequestParams;
 import com.microsoft.fastpath.requestParameters.FastpathReadRequestParams;
+import com.microsoft.fastpath.responseProviders.FastpathCloseResponse;
 import com.microsoft.fastpath.responseProviders.FastpathOpenResponse;
 import com.microsoft.fastpath.responseProviders.FastpathReadResponse;
-import com.microsoft.fastpath.responseProviders.FastpathCloseResponse;
 import com.microsoft.fastpath.responseProviders.FastpathResponse;
 import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.DEFAULT_TIMEOUT;
 import static org.apache.hadoop.fs.azurebfs.services.AuthType.OAuth;
-
-import org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations;
 
 /**
  * Represents a Fastpath operation.
@@ -71,15 +69,40 @@ public class AbfsFastpathConnection extends AbfsHttpOperation {
   }
 
   public java.util.Map<String, java.util.List<String>> getRequestHeaders() {
-      java.util.Map<String, java.util.List<String>> headers = new java.util.HashMap<String, java.util.List<String>>();
-      for(AbfsHttpHeader abfsHeader : this.requestHeaders) {
-        headers.put(abfsHeader.getName(),
-            java.util.Collections.singletonList(abfsHeader.getValue()));
+    java.util.Map<String, java.util.List<String>> headers
+        = new java.util.HashMap<String, java.util.List<String>>();
+    for (AbfsHttpHeader abfsHeader : this.requestHeaders) {
+      headers.put(abfsHeader.getName(),
+          java.util.Collections.singletonList(abfsHeader.getValue()));
+    }
+
+    headers.put(
+        org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.X_MS_CLIENT_REQUEST_ID,
+        java.util.Collections.singletonList(this.clientRequestId));
+
+    return headers;
+  }
+
+  //public java.util.Map<String, java.util.List<String>> getRequestHeaders() {
+  public String getRequestHeader(String header) {
+    String value ="";
+    for (AbfsHttpHeader abfsHeader : this.requestHeaders) {
+      if (abfsHeader.getName().equals(header)) {
+        value = abfsHeader.getValue();
+        break;
       }
+    }
 
-      headers.put(HttpHeaderConfigurations.X_MS_CLIENT_REQUEST_ID, java.util.Collections.singletonList(this.clientRequestId));
-
-      return headers;
+    return value;
+//      java.util.Map<String, java.util.List<String>> headers = new java.util.HashMap<String, java.util.List<String>>();
+//      for(AbfsHttpHeader abfsHeader : this.requestHeaders) {
+//        headers.put(abfsHeader.getName(),
+//            java.util.Collections.singletonList(abfsHeader.getValue()));
+//      }
+//
+//      headers.put(HttpHeaderConfigurations.X_MS_CLIENT_REQUEST_ID, java.util.Collections.singletonList(this.clientRequestId));
+//
+//      return headers;
   }
 
   /**
@@ -92,11 +115,7 @@ public class AbfsFastpathConnection extends AbfsHttpOperation {
    * @throws IOException if an error occurs.
    */
   public void processResponse(byte[] buffer, final int offset, final int length) throws IOException {
-    processFastpathReadRequest(buffer, offset, length);
-  }
-
-  private void processFastpathReadRequest(final byte[] buffer, final int buffOffset, final int length) throws IOException {
-    switch (this.opType) {
+     switch (this.opType) {
     case FastpathOpen:
       long startTime = System.nanoTime();
       processFastpathOpenResponse();
@@ -104,7 +123,7 @@ public class AbfsFastpathConnection extends AbfsHttpOperation {
       break;
     case FastpathRead:
       startTime = System.nanoTime();
-      processFastpathReadResponse(buffer, buffOffset, length);
+      processFastpathReadResponse(buffer, offset, length);
       this.recvResponseTimeMs = elapsedTimeMs(startTime);
     case FastpathClose:
       startTime = System.nanoTime();
@@ -143,9 +162,6 @@ public class AbfsFastpathConnection extends AbfsHttpOperation {
     FastpathOpenResponse openResponse = conn.open(openRequestParams);
     setStatusFromFastpathResponse(openResponse);
     if (openResponse.isSuccessResponse()) {
-      System.out.println(openResponse.getClientRequestId());
-      System.out.println(openResponse.getRequestId());
-      System.out.println(openResponse.getFastpathFileHandle());
       this.fastpathFileHandle = openResponse.getFastpathFileHandle();
     }
   }
@@ -161,9 +177,6 @@ public class AbfsFastpathConnection extends AbfsHttpOperation {
     setStatusFromFastpathResponse(readResponse);
     if (readResponse.isSuccessResponse()) {
       this.bytesReceived = readResponse.getBytesRead();
-      System.out.println(readResponse.getClientRequestId());
-      System.out.println(readResponse.getRequestId());
-      System.out.println("AbfsHttpOperation:: buffer = " + new String(buffer));
     }
   }
 

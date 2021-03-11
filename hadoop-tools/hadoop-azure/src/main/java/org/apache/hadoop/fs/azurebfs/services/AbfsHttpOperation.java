@@ -137,6 +137,8 @@ public abstract class AbfsHttpOperation implements AbfsPerfLoggable {
 
   public abstract java.util.Map<String, java.util.List<String>> getRequestHeaders();
 
+  public abstract String getRequestHeader(String header);
+
   /**
    * Gets and processes the HTTP response.
    *
@@ -342,6 +344,12 @@ public abstract class AbfsHttpOperation implements AbfsPerfLoggable {
     public java.util.Map<String, java.util.List<String>> getRequestHeaders() {
       java.util.Map<String, java.util.List<String>> dummyMap = new java.util.HashMap<>();
       return dummyMap;
+    }
+
+
+    @Override
+    public String getRequestHeader(final String header) {
+      return null;
     }
 
     @Override

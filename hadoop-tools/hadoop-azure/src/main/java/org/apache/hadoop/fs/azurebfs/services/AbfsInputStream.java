@@ -36,6 +36,8 @@ import org.apache.hadoop.fs.FileSystem.Statistics;
 import org.apache.hadoop.fs.StreamCapabilities;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AbfsRestOperationException;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AzureBlobFileSystemException;
+import org.apache.hadoop.fs.azurebfs.contracts.services.ReadRequestParameters;
+import org.apache.hadoop.fs.azurebfs.contracts.services.ReadRequestParameters.Mode;
 import org.apache.hadoop.fs.azurebfs.utils.CachedSASToken;
 import org.apache.hadoop.fs.statistics.IOStatistics;
 import org.apache.hadoop.fs.statistics.IOStatisticsSource;
@@ -103,6 +105,8 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
   private final AbfsInputStreamStatistics streamStatistics;
   private long bytesFromReadAhead; // bytes read from readAhead; for testing
   private long bytesFromRemoteRead; // bytes read remotely; for testing
+  private boolean isFastPathEnabled = false;
+  private String fastpathFileHandle = null;
 
   private final AbfsInputStreamContext context;
   private IOStatistics ioStatistics;
@@ -136,9 +140,22 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     // Propagate the config values to ReadBufferManager so that the first instance
     // to initialize can set the readAheadBlockSize
     ReadBufferManager.setReadBufferManagerConfigs(readAheadBlockSize);
+    isFastPathEnabled = abfsInputStreamContext.isFastpathEnabled() ?  checkFastpathStatus() : false;
     if (streamStatistics != null) {
       ioStatistics = streamStatistics.getIOStatistics();
     }
+  }
+
+  private boolean checkFastpathStatus() {
+    try {
+      AbfsRestOperation op = client.fastPathOpen(path, eTag);
+      this.fastpathFileHandle = ((AbfsFastpathConnection)op.getResult()).getFastpathFileHandle();
+    } catch (AzureBlobFileSystemException e) {
+      LOG.debug("Fastpath status check failed with {}", e);
+      return false;
+    }
+
+    return true;
   }
 
   public String getPath() {
@@ -481,14 +498,20 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     if (length > (b.length - offset)) {
       throw new IllegalArgumentException("requested read length is more than will fit after requested offset in buffer");
     }
-    final AbfsRestOperation op;
+
+    AbfsRestOperation op = null;
     AbfsPerfTracker tracker = client.getAbfsPerfTracker();
     try (AbfsPerfInfo perfInfo = new AbfsPerfInfo(tracker, "readRemote", "read")) {
       LOG.trace("Trigger client.read for path={} position={} offset={} length={}", path, position, offset, length);
+      ReadRequestParameters reqParams = new ReadRequestParameters(
+          (isFastPathEnabled ? Mode.FASTPATH_CONNECTION_MODE : Mode.HTTP_CONNECTION_MODE),
+          position, offset, length,
+          tolerateOobAppends ? "*" : eTag,
+          fastpathFileHandle,isOnRESTFallback());
       op = IOStatisticsBinding.trackDuration((IOStatisticsStore) ioStatistics,
-          StoreStatisticNames.ACTION_HTTP_GET_REQUEST,
-          () -> client.read(path, position, b, offset, length,
-              tolerateOobAppends ? "*" : eTag, cachedSasToken.get()));
+        StoreStatisticNames.ACTION_HTTP_GET_REQUEST,
+          () -> client.read(path, b, cachedSasToken.get(), reqParams));
+
       cachedSasToken.update(op.getSasToken());
       if (streamStatistics != null) {
         streamStatistics.remoteReadOperation();
@@ -505,7 +528,14 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
         }
       }
       throw new IOException(ex);
+    } finally {
+      // if error handling had switched to contacting REST endpoint,
+      // continue in REST mode
+      if (isFastPathEnabled && (op != null)) {
+        isFastPathEnabled = op.isAFastpathRequest();
+      }
     }
+
     long bytesRead = op.getResult().getBytesReceived();
     if (streamStatistics != null) {
       streamStatistics.remoteBytesRead(bytesRead);
@@ -516,6 +546,12 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
     LOG.debug("HTTP request read bytes = {}", bytesRead);
     bytesFromRemoteRead += bytesRead;
     return (int) bytesRead;
+  }
+
+  private boolean isOnRESTFallback() {
+    // a non null fastpathFileHandle means Fastpath open was successful
+    // but if flag isFastpathEnabled false, it means REST fallback was triggered
+    return ((fastpathFileHandle != null) && !isFastPathEnabled);
   }
 
   /**
@@ -650,6 +686,15 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
 
   @Override
   public synchronized void close() throws IOException {
+    try {
+      if (isFastPathEnabled) {
+        client.fastPathClose(path, eTag, fastpathFileHandle);
+      }
+    } catch (Exception ex) {
+      LOG.debug("Fastpath close failed");
+      // ignore any close failure
+    }
+
     closed = true;
     buffer = null; // de-reference the buffer so it can be GC'ed sooner
     LOG.debug("Closing {}", this);

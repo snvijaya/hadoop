@@ -189,5 +189,8 @@ public final class ConfigurationKeys {
    * @see FileSystem#openFile(org.apache.hadoop.fs.Path)
    */
   public static final String FS_AZURE_BUFFERED_PREAD_DISABLE = "fs.azure.buffered.pread.disable";
+
+  // comment - TODO
+  public static final String FS_AZURE_FASTPATH_ENABLE = "fs.azure.fastpath.enable";
   private ConfigurationKeys() {}
 }

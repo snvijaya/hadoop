@@ -40,5 +40,8 @@ public enum AbfsRestOperationType {
     Flush,
     ReadFile,
     DeletePath,
-    CheckAccess
+    CheckAccess,
+    FastpathOpen,
+    FastpathRead,
+    FastpathClose
 }

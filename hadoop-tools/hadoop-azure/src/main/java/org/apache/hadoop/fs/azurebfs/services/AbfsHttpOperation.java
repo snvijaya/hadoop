@@ -215,6 +215,8 @@ public abstract class AbfsHttpOperation implements AbfsPerfLoggable {
     return sb.toString();
   }
 
+  public abstract String getFastpathFileHandle();
+
   public AbfsHttpOperation(final AbfsRestOperationType opType,
       final URL url,
       final String method,
@@ -292,10 +294,16 @@ public abstract class AbfsHttpOperation implements AbfsPerfLoggable {
 
   public void updateClientReqIdToIndicateRESTFallback(boolean isRESTFallback) {
     if (isRESTFallback) {
-      clientRequestId += "_FPBK";
+      clientRequestId += "_IS_HTTP_FB";
     }
   }
 
+  //todo - rem
+  public void updateIsFastpath(boolean isFastpath) {
+    if (isFastpath) {
+      clientRequestId += "_IS_FP";
+    }
+  }
   public static AbfsHttpOperation getAbfsHttpOperationWithFixedResult(
       final URL url,
       final String method,
@@ -357,6 +365,11 @@ public abstract class AbfsHttpOperation implements AbfsPerfLoggable {
         final int offset,
         final int length) throws java.io.IOException {
 
+    }
+
+    public String getFastpathFileHandle()
+    {
+      return "";
     }
   }
 }

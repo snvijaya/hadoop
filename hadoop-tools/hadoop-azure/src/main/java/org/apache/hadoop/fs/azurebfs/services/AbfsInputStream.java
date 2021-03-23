@@ -23,9 +23,10 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 
-import org.apache.hadoop.thirdparty.com.google.common.base.Preconditions;
-import org.apache.hadoop.thirdparty.com.google.common.annotations.VisibleForTesting;
-
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+import static org.apache.hadoop.fs.azurebfs.constants.FileSystemConfigurations.ONE_KB;
+import static org.apache.hadoop.util.StringUtils.toLowerCase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,12 +45,8 @@ import org.apache.hadoop.fs.statistics.IOStatisticsSource;
 import org.apache.hadoop.fs.statistics.StoreStatisticNames;
 import org.apache.hadoop.fs.statistics.impl.IOStatisticsBinding;
 import org.apache.hadoop.fs.statistics.impl.IOStatisticsStore;
-
-import static java.lang.Math.max;
-import static java.lang.Math.min;
-
-import static org.apache.hadoop.fs.azurebfs.constants.FileSystemConfigurations.ONE_KB;
-import static org.apache.hadoop.util.StringUtils.toLowerCase;
+import org.apache.hadoop.thirdparty.com.google.common.annotations.VisibleForTesting;
+import org.apache.hadoop.thirdparty.com.google.common.base.Preconditions;
 
 /**
  * The AbfsInputStream for AbfsClient.
@@ -60,7 +57,7 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
   //  Footer size is set to qualify for both ORC and parquet files
   public static final int FOOTER_SIZE = 16 * ONE_KB;
   public static final int MAX_OPTIMIZED_READ_ATTEMPTS = 2;
-
+  private boolean mockedSO = true;
   private int readAheadBlockSize;
   private final AbfsClient client;
   private final Statistics statistics;
@@ -117,7 +114,14 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
           final String path,
           final long contentLength,
           final AbfsInputStreamContext abfsInputStreamContext,
-          final String eTag) {
+          final String eTag,
+      final boolean mockedSo) {
+    this.mockedSO = mockedSo;
+    if (!mockedSo) {
+      client.readErrStatus = 1000;
+      client.openErrStatus = 1000;
+      client.closeErrStatus = 1000;
+    }
     this.client = client;
     this.statistics = statistics;
     this.path = path;
@@ -148,8 +152,18 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
 
   private boolean checkFastpathStatus() {
     try {
-      AbfsRestOperation op = client.fastPathOpen(path, eTag);
+      AbfsRestOperation op;
+      if (client.getOpenErrStatus() == -1) {
+        op = client.fastPathOpen(path, eTag);
+      } else {
+        if (!mockedSO) {
+          client.openErrStatus = 1000;
+        }
+        op = client.fastPathOpen(path, eTag, client.openErrStatus);
+      }
+
       this.fastpathFileHandle = ((AbfsFastpathConnection)op.getResult()).getFastpathFileHandle();
+      System.out.println("open handle = " + this.fastpathFileHandle);
     } catch (AzureBlobFileSystemException e) {
       LOG.debug("Fastpath status check failed with {}", e);
       return false;
@@ -508,9 +522,18 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
           position, offset, length,
           tolerateOobAppends ? "*" : eTag,
           fastpathFileHandle,isOnRESTFallback());
-      op = IOStatisticsBinding.trackDuration((IOStatisticsStore) ioStatistics,
-        StoreStatisticNames.ACTION_HTTP_GET_REQUEST,
-          () -> client.read(path, b, cachedSasToken.get(), reqParams));
+      if (client.readErrStatus == -1) {
+        op = IOStatisticsBinding.trackDuration((IOStatisticsStore) ioStatistics,
+            StoreStatisticNames.ACTION_HTTP_GET_REQUEST,
+            () -> client.read(path, b, cachedSasToken.get(), reqParams));
+      } else {
+        if (!mockedSO) {
+          client.readErrStatus = 1000;
+        }
+        op = IOStatisticsBinding.trackDuration((IOStatisticsStore) ioStatistics,
+            StoreStatisticNames.ACTION_HTTP_GET_REQUEST,
+            () -> client.read(path, b, cachedSasToken.get(), reqParams, client.readErrStatus));
+      }
 
       cachedSasToken.update(op.getSasToken());
       if (streamStatistics != null) {
@@ -688,7 +711,14 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
   public synchronized void close() throws IOException {
     try {
       if (isFastPathEnabled) {
-        client.fastPathClose(path, eTag, fastpathFileHandle);
+        if (client.closeErrStatus == -1) {
+          client.fastPathClose(path, eTag, fastpathFileHandle);
+        } else {
+          if (!mockedSO) {
+            client.closeErrStatus = 1000;
+          }
+          client.fastPathClose(path, eTag, fastpathFileHandle, client.closeErrStatus);
+        }
       }
     } catch (Exception ex) {
       LOG.debug("Fastpath close failed");

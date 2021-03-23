@@ -77,6 +77,10 @@ public class ITestAbfsStreamStatistics extends AbstractAbfsIntegrationTest {
 
       //Flushing output stream to see content to read
       outForOneOperation.hflush();
+      byte[] buff = testReadWriteOps.getBytes();
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+          buff.length, smallOperationsFile.getName(), buff, 0, buff.length);
+
       inForOneOperation = fs.open(smallOperationsFile);
       statistics.reset();
       int result = inForOneOperation.read(testReadWriteOps.getBytes(), 0,
@@ -103,6 +107,8 @@ public class ITestAbfsStreamStatistics extends AbstractAbfsIntegrationTest {
     } finally {
       IOUtils.cleanupWithLogger(LOG, inForOneOperation,
           outForOneOperation);
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+          smallOperationsFile.getName());
     }
 
     //Validating if content is being written in the smallOperationsFile
@@ -117,8 +123,12 @@ public class ITestAbfsStreamStatistics extends AbstractAbfsIntegrationTest {
       outForLargeOperations = fs.create(largeOperationsFile);
       statistics.reset();
       int largeValue = LARGE_NUMBER_OF_OPS;
+      byte[] buff = testReadWriteOps.getBytes();
+      int tot = largeValue*buff.length;
       for (int i = 0; i < largeValue; i++) {
         outForLargeOperations.write(testReadWriteOps.getBytes());
+        org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+            tot, largeOperationsFile.getName(), buff, 0, buff.length);
 
         //Creating the String for content Validation
         largeOperationsValidationString.append(testReadWriteOps);
@@ -149,6 +159,8 @@ public class ITestAbfsStreamStatistics extends AbstractAbfsIntegrationTest {
     } finally {
       IOUtils.cleanupWithLogger(LOG, inForLargeOperations,
           outForLargeOperations);
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+          largeOperationsFile.getName());
     }
     //Validating if content is being written in largeOperationsFile
     assertTrue("Mismatch in content validation",

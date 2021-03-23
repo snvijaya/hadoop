@@ -50,6 +50,11 @@ public class ITestAbfsInputStreamReadFooter extends ITestAbfsInputStream {
   public ITestAbfsInputStreamReadFooter() throws Exception {
   }
 
+  @org.junit.After
+  public void tearDown() throws Exception {
+    super.teardown();
+  }
+
   @Test
   public void testOnlyOneServerCallIsMadeWhenTheConfIsTrue() throws Exception {
     testNumBackendCalls(true);

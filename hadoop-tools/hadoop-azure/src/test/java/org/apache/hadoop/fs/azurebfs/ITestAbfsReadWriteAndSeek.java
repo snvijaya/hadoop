@@ -76,6 +76,8 @@ public class ITestAbfsReadWriteAndSeek extends AbstractAbfsScaleTest {
     try (FSDataOutputStream stream = fs.create(TEST_PATH)) {
       stream.write(b);
     }
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+        b.length, TEST_PATH.getName(), b, 0, b.length);
 
     final byte[] readBuffer = new byte[2 * bufferSize];
     int result;
@@ -88,5 +90,8 @@ public class ITestAbfsReadWriteAndSeek extends AbstractAbfsScaleTest {
     }
     assertNotEquals("data read in final read()", -1, result);
     assertArrayEquals(readBuffer, b);
+
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+        TEST_PATH.getName());
   }
 }

@@ -137,7 +137,10 @@ import static org.apache.hadoop.fs.azurebfs.constants.ConfigurationKeys.FS_AZURE
 @InterfaceStability.Evolving
 public class AzureBlobFileSystemStore implements Closeable, ListingSupport {
   private static final Logger LOG = LoggerFactory.getLogger(AzureBlobFileSystemStore.class);
-
+  private boolean mockedSO = true;
+  public void disableMockedSoPath() {
+    mockedSO = false;
+  }
   private AbfsClient client;
   private URI uri;
   private String userName;
@@ -647,7 +650,7 @@ public class AzureBlobFileSystemStore implements Closeable, ListingSupport {
       return new AbfsInputStream(client, statistics,
               relativePath, contentLength,
               populateAbfsInputStreamContext(options),
-              eTag);
+              eTag, mockedSO);
     }
   }
 

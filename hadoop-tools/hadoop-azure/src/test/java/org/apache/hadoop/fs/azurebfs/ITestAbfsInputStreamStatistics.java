@@ -62,6 +62,9 @@ public class ITestAbfsInputStreamStatistics
     try {
 
       outputStream = createAbfsOutputStreamWithFlushEnabled(fs, initValuesPath);
+      byte[] b = new byte[0];
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+          0, initValuesPath.getName(), b, 0, b.length);
       inputStream = abfss.openFileForRead(initValuesPath, fs.getFsStatistics());
 
       AbfsInputStreamStatisticsImpl stats =
@@ -82,6 +85,7 @@ public class ITestAbfsInputStreamStatistics
 
     } finally {
       IOUtils.cleanupWithLogger(LOG, outputStream, inputStream);
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(initValuesPath.getName());
     }
   }
 
@@ -106,6 +110,8 @@ public class ITestAbfsInputStreamStatistics
       //Writing a default buffer in a file.
       out.write(defBuffer);
       out.hflush();
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+          defBuffer.length, seekStatPath.getName(), defBuffer, 0, defBuffer.length);
       in = abfss.openFileForRead(seekStatPath, fs.getFsStatistics());
 
       /*
@@ -170,6 +176,8 @@ public class ITestAbfsInputStreamStatistics
       LOG.info("STATISTICS after closing: {}", stats.toString());
     } finally {
       IOUtils.cleanupWithLogger(LOG, out, in);
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+          seekStatPath.getName());
     }
   }
 
@@ -196,6 +204,8 @@ public class ITestAbfsInputStreamStatistics
        */
       out.write(defBuffer);
       out.hflush();
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+          defBuffer.length, readStatPath.getName(), defBuffer, 0, defBuffer.length);
       in = abfss.openFileForRead(readStatPath, fs.getFsStatistics());
 
       /*
@@ -233,6 +243,8 @@ public class ITestAbfsInputStreamStatistics
       LOG.info("STATISTICS after closing: {}", stats.toString());
     } finally {
       IOUtils.cleanupWithLogger(LOG, out, in);
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+          readStatPath.getName());
     }
   }
 
@@ -274,7 +286,7 @@ public class ITestAbfsInputStreamStatistics
       in = new AbfsInputStream(fs.getAbfsClient(), null,
           nullStatFilePath.toUri().getPath(), ONE_KB,
           abfsInputStreamContext,
-          abfsRestOperation.getResult().getResponseHeader("ETag"));
+          abfsRestOperation.getResult().getResponseHeader("ETag"), true);
 
       // Verifying that AbfsInputStream Operations works with null statistics.
       assertNotEquals("AbfsInputStream read() with null statistics should "
@@ -316,6 +328,9 @@ public class ITestAbfsInputStreamStatistics
       out = createAbfsOutputStreamWithFlushEnabled(fs, readAheadCountersPath);
       out.write(defBuffer);
       out.close();
+
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+          defBuffer.length, readAheadCountersPath.getName(), defBuffer, 0, defBuffer.length);
 
       in = abfss.openFileForRead(readAheadCountersPath, fs.getFsStatistics());
 
@@ -362,6 +377,8 @@ public class ITestAbfsInputStreamStatistics
 
     } finally {
       IOUtils.cleanupWithLogger(LOG, out, in);
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+          readAheadCountersPath.getName());
     }
   }
 
@@ -382,7 +399,10 @@ public class ITestAbfsInputStreamStatistics
           actionHttpGetRequestPath);
       abfsOutputStream.write('a');
       abfsOutputStream.hflush();
-
+      byte[] b = new byte[1];
+      b[0] = 'a';
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+          1024, actionHttpGetRequestPath.getName(), b, 0, b.length);
       abfsInputStream =
           abfss.openFileForRead(actionHttpGetRequestPath, fs.getFsStatistics());
       abfsInputStream.read();
@@ -396,6 +416,7 @@ public class ITestAbfsInputStreamStatistics
           .isGreaterThan(0.0);
     } finally {
       IOUtils.cleanupWithLogger(LOG, abfsInputStream, abfsOutputStream);
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(actionHttpGetRequestPath.getName());
     }
   }
 

@@ -76,6 +76,10 @@ public class ReadRequestParameters {
     return this.mode;
   }
 
+  public boolean isRESTfallback() {
+    return isRESTfallback;
+  }
+
   public void setMode(final Mode mode) {
     this.mode = mode;
   }

@@ -208,6 +208,9 @@ public class ITestAbfsNetworkStatistics extends AbstractAbfsIntegrationTest {
       out = fs.create(getResponsePath);
       out.write(testResponseString.getBytes());
       out.hflush();
+      byte[] buff = testResponseString.getBytes();
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+          buff.length, getResponsePath.getName(), buff, 0, buff.length);
 
       // Set metric baseline
       metricMap = fs.getInstrumentationMap();
@@ -228,6 +231,10 @@ public class ITestAbfsNetworkStatistics extends AbstractAbfsIntegrationTest {
       // Operation: Read
       int result = in.read();
       // Network stats calculation: For read:
+      if (fs.getAbfsClient().isFastpathEnabled()) {
+        expectedConnectionsMade++; // for FastpathOpen
+        expectedGetResponses++;
+      }
       // 1 read request = 1 connection and 1 get response
       expectedConnectionsMade++;
       expectedGetResponses++;
@@ -241,6 +248,8 @@ public class ITestAbfsNetworkStatistics extends AbstractAbfsIntegrationTest {
       assertAbfsStatistics(AbfsStatistic.BYTES_RECEIVED, expectedBytesReceived, metricMap);
     } finally {
       IOUtils.cleanupWithLogger(LOG, out, in);
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+          getResponsePath.getName());
     }
 
     // --------------------------------------------------------------------
@@ -255,11 +264,16 @@ public class ITestAbfsNetworkStatistics extends AbstractAbfsIntegrationTest {
       // test method testAbfsHttpSendStatistics]
       StringBuilder largeBuffer = new StringBuilder();
       out = fs.create(getResponsePath);
+      byte[] b = testResponseString.getBytes();
 
       for (int i = 0; i < WRITE_OPERATION_LOOP_COUNT; i++) {
         out.write(testResponseString.getBytes());
         out.hflush();
         largeBuffer.append(testResponseString);
+        org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+            WRITE_OPERATION_LOOP_COUNT * (b.length),
+            getResponsePath.getName(), b,
+            0, b.length);
       }
 
       // sync back to metric baseline
@@ -271,6 +285,11 @@ public class ITestAbfsNetworkStatistics extends AbstractAbfsIntegrationTest {
       in = fs.open(getResponsePath);
       // Network stats calculation: For Creating AbfsInputStream:
       // 1 GetFileStatus for file size = 1 connection and 1 get response
+      if (fs.getAbfsClient().isFastpathEnabled()) {
+        expectedConnectionsMade++; // for FastpathOpen
+        expectedGetResponses++;
+      }
+
       expectedConnectionsMade++;
       expectedGetResponses++;
       // --------------------------------------------------------------------
@@ -292,6 +311,8 @@ public class ITestAbfsNetworkStatistics extends AbstractAbfsIntegrationTest {
       assertAbfsStatistics(AbfsStatistic.BYTES_RECEIVED, expectedBytesReceived, metricMap);
     } finally {
       IOUtils.cleanupWithLogger(LOG, out, in);
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+          getResponsePath.getName());
     }
   }
 

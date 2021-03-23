@@ -47,6 +47,7 @@ public class ITestAbfsUnbuffer extends AbstractAbfsIntegrationTest {
     byte[] data = ContractTestUtils.dataset(16, 'a', 26);
     ContractTestUtils.writeDataset(getFileSystem(), dest, data, data.length,
             16, true);
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(data.length,dest.getName(), data, 0, data.length);
   }
 
   @Test
@@ -64,6 +65,7 @@ public class ITestAbfsUnbuffer extends AbstractAbfsIntegrationTest {
       // Check the the underlying buffer is null
       assertTrue("AbfsInputStream buffer should be null",
               isBufferNull(inputStream));
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(dest.getName());
     }
   }
 

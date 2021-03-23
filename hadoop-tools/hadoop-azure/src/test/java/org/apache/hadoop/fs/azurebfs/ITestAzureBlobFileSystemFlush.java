@@ -112,7 +112,8 @@ public class ITestAzureBlobFileSystemFlush extends AbstractAbfsScaleTest {
         Thread.sleep(10);
       }
     }
-
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+        b.length, testFilePath.getName(), b, 0, b.length);
     final byte[] r = new byte[TEST_BUFFER_SIZE];
     try (FSDataInputStream inputStream = fs.open(testFilePath, 4 * ONE_MB)) {
       int result = inputStream.read(r);
@@ -120,6 +121,8 @@ public class ITestAzureBlobFileSystemFlush extends AbstractAbfsScaleTest {
       assertNotEquals(-1, result);
       assertArrayEquals(r, b);
     }
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+        testFilePath.getName());
   }
 
 
@@ -250,11 +253,15 @@ public class ITestAzureBlobFileSystemFlush extends AbstractAbfsScaleTest {
 
       // Flush commits the data so it can be read.
       stream.flush();
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+          buffer.length, testFilePath.getName(), buffer, 0, buffer.length);
 
       // Verify that the data can be read if disableOutputStreamFlush is
       // false; and otherwise cannot be read.
       /* For Appendlob flush is not needed to update data on server */
       validate(fs.open(testFilePath), buffer, !disableOutputStreamFlush || isAppendBlob);
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+          testFilePath.getName());
     }
   }
 
@@ -267,7 +274,13 @@ public class ITestAzureBlobFileSystemFlush extends AbstractAbfsScaleTest {
 
     try (FSDataOutputStream stream = getStreamAfterWrite(fs, testFilePath, buffer, true)) {
       stream.hflush();
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+          buffer.length, testFilePath.getName(), buffer, 0, buffer.length);
+
       validate(fs, testFilePath, buffer, true);
+
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+          testFilePath.getName());
     }
   }
 
@@ -283,8 +296,14 @@ public class ITestAzureBlobFileSystemFlush extends AbstractAbfsScaleTest {
 
     try (FSDataOutputStream stream = getStreamAfterWrite(fs, testFilePath, buffer, false)) {
       stream.hflush();
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+          buffer.length, testFilePath.getName(), buffer, 0, buffer.length);
+
       /* For Appendlob flush is not needed to update data on server */
       validate(fs, testFilePath, buffer, isAppendBlob);
+
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+          testFilePath.getName());
     }
   }
 
@@ -297,7 +316,13 @@ public class ITestAzureBlobFileSystemFlush extends AbstractAbfsScaleTest {
 
     try (FSDataOutputStream stream = getStreamAfterWrite(fs, testFilePath, buffer, true)) {
       stream.hsync();
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+          buffer.length, testFilePath.getName(), buffer, 0, buffer.length);
+
       validate(fs, testFilePath, buffer, true);
+
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+          testFilePath.getName());
     }
   }
 
@@ -345,8 +370,14 @@ public class ITestAzureBlobFileSystemFlush extends AbstractAbfsScaleTest {
     }
     try (FSDataOutputStream stream = getStreamAfterWrite(fs, testFilePath, buffer, false)) {
       stream.hsync();
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+          buffer.length, testFilePath.getName(), buffer, 0, buffer.length);
+
       /* For Appendlob flush is not needed to update data on server */
       validate(fs, testFilePath, buffer, isAppendBlob);
+
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+          testFilePath.getName());
     }
   }
 

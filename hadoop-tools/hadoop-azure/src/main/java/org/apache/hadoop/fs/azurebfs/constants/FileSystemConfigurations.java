@@ -102,7 +102,7 @@ public final class FileSystemConfigurations {
   public static final int DEFAULT_CLOCK_SKEW_WITH_SERVER_IN_MS = 5 * 60 * 1000; // 5 mins
 
   public static final boolean DEFAULT_ENABLE_ABFS_LIST_ITERATOR = true;
-  public static final boolean DEFAULT_FASTPATH_ENABLE = false;
+  public static final boolean DEFAULT_FASTPATH_ENABLE = true;
 
   private FileSystemConfigurations() {}
 }

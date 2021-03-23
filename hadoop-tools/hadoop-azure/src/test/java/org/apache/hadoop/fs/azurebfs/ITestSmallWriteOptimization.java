@@ -294,6 +294,17 @@ public class ITestSmallWriteOptimization extends AbstractAbfsScaleTest {
             },
         });
   }
+  java.util.List<String> filesToUnregister = new java.util.ArrayList<String>();
+
+  @org.junit.After
+  public void tearDown() throws Exception {
+    super.teardown();
+    java.util.Iterator<String> itr = filesToUnregister.iterator();
+    while(itr.hasNext()) {
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(itr.next());
+    }
+  }
+
   public ITestSmallWriteOptimization() throws Exception {
     super();
   }
@@ -367,7 +378,7 @@ public class ITestSmallWriteOptimization extends AbstractAbfsScaleTest {
     FSDataOutputStream opStream;
 
     if (startingFileSize > 0) {
-      writeBufferCursor += createFileWithStartingTestSize(fs, writeBuffer, writeBufferCursor, testPath,
+      writeBufferCursor += createFileWithStartingTestSize(totalFileSize, fs, writeBuffer, writeBufferCursor, testPath,
           startingFileSize);
       opStream = fs.append(testPath);
     } else {
@@ -386,7 +397,7 @@ public class ITestSmallWriteOptimization extends AbstractAbfsScaleTest {
 
     while (testIteration > 0) {
       // trigger recurringWriteSize appends over numOfWrites
-      writeBufferCursor += executeWritePattern(opStream, writeBuffer,
+      writeBufferCursor += executeWritePattern(testPath, totalDataToBeAppended, opStream, writeBuffer,
           writeBufferCursor, numOfWrites, recurringWriteSize);
 
       int numOfBuffersWrittenToStore = (int) Math.floor(
@@ -455,11 +466,11 @@ public class ITestSmallWriteOptimization extends AbstractAbfsScaleTest {
     validateStoreAppends(fs, testPath, totalFileSize, writeBuffer);
   }
 
-  private int createFileWithStartingTestSize(AzureBlobFileSystem fs, byte[] writeBuffer,
+  private int createFileWithStartingTestSize(int totalFileSize, AzureBlobFileSystem fs, byte[] writeBuffer,
       int writeBufferCursor, Path testPath, int startingFileSize)
       throws IOException {
     FSDataOutputStream opStream = fs.create(testPath);
-    writeBufferCursor += executeWritePattern(opStream,
+    writeBufferCursor += executeWritePattern(testPath, totalFileSize, opStream,
         writeBuffer,
         writeBufferCursor,
         1,
@@ -503,7 +514,7 @@ public class ITestSmallWriteOptimization extends AbstractAbfsScaleTest {
     assertAbfsStatistics(BYTES_SENT, expectedBytesSent, metricMap);
   }
 
-  private int executeWritePattern(FSDataOutputStream opStream,
+  private int executeWritePattern(Path testFilePath, int totalSize, FSDataOutputStream opStream,
       byte[] buffer,
       int startOffset,
       int writeLoopCount,
@@ -513,10 +524,13 @@ public class ITestSmallWriteOptimization extends AbstractAbfsScaleTest {
 
     while (writeLoopCount > 0) {
       opStream.write(buffer, startOffset, writeSize);
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+          totalSize, testFilePath.getName(), buffer, startOffset, writeSize);
       startOffset += writeSize;
       writeLoopCount--;
     }
 
+    filesToUnregister.add(testFilePath.getName());
     dataSizeWritten = startOffset - dataSizeWritten;
     return dataSizeWritten;
   }

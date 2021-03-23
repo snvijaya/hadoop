@@ -22,7 +22,10 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.List;
 
+//todo remove
+import com.microsoft.fastpath.AbfsDriverMockFastpathConnection;
 import com.microsoft.fastpath.FastpathConnection;
+import com.microsoft.fastpath.exceptions.FastpathException;
 import com.microsoft.fastpath.requestParameters.AccessTokenType;
 import com.microsoft.fastpath.requestParameters.FastpathCloseRequestParams;
 import com.microsoft.fastpath.requestParameters.FastpathOpenRequestParams;
@@ -32,6 +35,14 @@ import com.microsoft.fastpath.responseProviders.FastpathOpenResponse;
 import com.microsoft.fastpath.responseProviders.FastpathReadResponse;
 import com.microsoft.fastpath.responseProviders.FastpathResponse;
 import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.DEFAULT_TIMEOUT;
+import static org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrRead404;
+import static org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrRead500;
+import static org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrRead503;
+import static org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrOpen404;
+import static org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrOpen500;
+import static org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrClose500;
+import static org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathOpenNonMock;
+import static org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathReadNonMock;
 import static org.apache.hadoop.fs.azurebfs.services.AuthType.OAuth;
 
 /**
@@ -45,6 +56,7 @@ public class AbfsFastpathConnection extends AbfsHttpOperation {
   // should be configurable ?
   int defaultTimeout = Integer.valueOf(DEFAULT_TIMEOUT);
   FastpathResponse response = null;
+
 
   public String getFastpathFileHandle() {
     return fastpathFileHandle;
@@ -117,20 +129,31 @@ public class AbfsFastpathConnection extends AbfsHttpOperation {
   public void processResponse(byte[] buffer, final int offset, final int length) throws IOException {
      switch (this.opType) {
     case FastpathOpen:
+     case FastpathErrOpen404:
+     case FastpathErrOpen500:
+     case FastpathOpenNonMock:
       long startTime = System.nanoTime();
       processFastpathOpenResponse();
       this.recvResponseTimeMs = elapsedTimeMs(startTime);
       break;
     case FastpathRead:
+     case FastpathErrRead404:
+     case FastpathErrRead503:
+     case FastpathErrRead500:
+     case FastpathReadNonMock:
       startTime = System.nanoTime();
       processFastpathReadResponse(buffer, offset, length);
       this.recvResponseTimeMs = elapsedTimeMs(startTime);
+      break;
     case FastpathClose:
+     case FastpathErrClose500:
+     case FastpathCloseNonMock:
       startTime = System.nanoTime();
       processFastpathCloseResponse();
       this.recvResponseTimeMs = elapsedTimeMs(startTime);
+      break;
     default:
-      throw new IOException("Invalid state");
+      throw new FastpathException("Invalid state");
     }
   }
 
@@ -143,49 +166,103 @@ public class AbfsFastpathConnection extends AbfsHttpOperation {
   }
 
   private AccessTokenType getAccessTokenType(AuthType authType)
-      throws java.io.IOException {
+      throws FastpathException {
     if (authType == OAuth) {
       return AccessTokenType.AadBearer;
     }
 
-    throw new java.io.IOException("Unsupported authType for Fastpath connection");
+    throw new FastpathException("Unsupported authType for Fastpath connection");
   }
 
-  private void processFastpathOpenResponse() throws java.io.IOException {
+  private void processFastpathOpenResponse() throws FastpathException {
     FastpathOpenRequestParams openRequestParams = new FastpathOpenRequestParams(
         url,
         getAccessTokenType(authType),
         authToken,
         getRequestHeaders(),
         defaultTimeout);
-    FastpathConnection conn = new FastpathConnection();
-    FastpathOpenResponse openResponse = conn.open(openRequestParams);
+    //FastpathConnection conn = new FastpathConnection();
+    AbfsDriverMockFastpathConnection conn = new AbfsDriverMockFastpathConnection();
+    FastpathOpenResponse openResponse;
+
+    if (opType == FastpathErrOpen404) {
+      openResponse = conn.errOpen(openRequestParams, 404);
+    } else if (opType == FastpathErrOpen500) {
+      openResponse = conn.errOpen(openRequestParams, 500);
+    } else if (opType == FastpathOpenNonMock) {
+      FastpathConnection conna = new com.microsoft.fastpath.FastpathConnection();
+      openResponse = conna.open(openRequestParams);
+    } else {
+      openResponse = conn.open(openRequestParams);
+    }
     setStatusFromFastpathResponse(openResponse);
     if (openResponse.isSuccessResponse()) {
       this.fastpathFileHandle = openResponse.getFastpathFileHandle();
+      System.out.println("Fast path open successful - handle received = " + this.fastpathFileHandle);
     }
   }
 
   private void processFastpathReadResponse(final byte[] buffer,
-      final int buffOffset, final int length) throws IOException {
+      final int buffOffset, final int length) throws FastpathException {
     FastpathReadRequestParams readRequestParams
         = new FastpathReadRequestParams(url, getAccessTokenType(authType),
         authToken, getRequestHeaders(),
         defaultTimeout, buffOffset, fastpathFileHandle);
-    FastpathConnection conn = new FastpathConnection();
-    FastpathReadResponse readResponse = conn.read(readRequestParams, buffer);
+    //FastpathConnection conn = new FastpathConnection();
+    AbfsDriverMockFastpathConnection conn = new AbfsDriverMockFastpathConnection();
+    FastpathReadResponse readResponse;
+    if (opType == FastpathErrRead404) {
+      readResponse = conn.errRead(readRequestParams, buffer, 404);
+    } else if (opType == FastpathErrRead500) {
+      readResponse = conn.errRead(readRequestParams, buffer, 500);
+    } else if (opType == FastpathErrRead503) {
+      readResponse = conn.errRead(readRequestParams, buffer, 503);
+    } else if (opType == FastpathReadNonMock) {
+      FastpathConnection conna = new com.microsoft.fastpath.FastpathConnection();
+      readResponse = conna.read(readRequestParams, buffer);
+    } else {
+      readResponse = conn.read(readRequestParams, buffer);
+    }
+
     setStatusFromFastpathResponse(readResponse);
     if (readResponse.isSuccessResponse()) {
       this.bytesReceived = readResponse.getBytesRead();
+      System.out.println("Fast path open successful - bytes received = " + this.bytesReceived);
     }
   }
 
-  private void processFastpathCloseResponse() throws java.io.IOException {
+  private void processFastpathCloseResponse() throws FastpathException {
     FastpathCloseRequestParams closeRequestParams
         = new FastpathCloseRequestParams(url, getAccessTokenType(authType),
         authToken, getRequestHeaders(), defaultTimeout, fastpathFileHandle);
-    FastpathConnection conn = new FastpathConnection();
-    FastpathCloseResponse closeResponse = conn.close(closeRequestParams);
+    //FastpathConnection conn = new FastpathConnection();
+    AbfsDriverMockFastpathConnection conn = new AbfsDriverMockFastpathConnection();
+    FastpathCloseResponse closeResponse;
+    if (opType == FastpathErrClose500) {
+      closeResponse = conn.errClose(closeRequestParams, 500);
+    } else if (opType == FastpathOpenNonMock) {
+      FastpathConnection conna = new com.microsoft.fastpath.FastpathConnection();
+      closeResponse = conna.close(closeRequestParams);
+    }else {
+      closeResponse = conn.close(closeRequestParams);
+    }
+
     setStatusFromFastpathResponse(closeResponse);
+
+    if (closeResponse.isSuccessResponse()) {
+      System.out.println("Fast path close successful");
+    }
   }
+
+  public static void registerAppend(String path, byte[] data, int offset, int length) {
+    com.microsoft.fastpath.AbfsDriverMockFastpathConnection.registerAppend(path, data, offset, length);
+  }
+
+  public static void registerAppend(int fileSize, String path, byte[] data, int offset, int length) {
+    com.microsoft.fastpath.AbfsDriverMockFastpathConnection.registerAppend(fileSize, path, data, offset, length);
+  }
+  public static void unregisterAppend(String path) {
+    com.microsoft.fastpath.AbfsDriverMockFastpathConnection.unregisterAppendPath(path);
+  }
+
 }

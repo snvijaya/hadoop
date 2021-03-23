@@ -43,6 +43,16 @@ import static org.mockito.Mockito.spy;
 public class ITestAbfsInputStream extends AbstractAbfsIntegrationTest {
 
   protected static final int HUNDRED = 100;
+  java.util.List<String> filesToUnregister = new java.util.ArrayList<String>();
+
+  @org.junit.After
+  public void tearDown() throws Exception {
+    super.teardown();
+    java.util.Iterator<String> itr = filesToUnregister.iterator();
+    while(itr.hasNext()) {
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(itr.next());
+    }
+  }
 
   public ITestAbfsInputStream() throws Exception {
   }
@@ -175,6 +185,10 @@ public class ITestAbfsInputStream extends AbstractAbfsIntegrationTest {
       oStream.write(fileContent);
       oStream.flush();
     }
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+        fileContent.length, testFilePath.getName(), fileContent, 0, fileContent.length);
+
+    filesToUnregister.add(testFilePath.getName());
     return testFilePath;
   }
 

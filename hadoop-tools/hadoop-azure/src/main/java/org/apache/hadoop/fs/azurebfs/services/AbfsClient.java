@@ -30,33 +30,88 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-import org.apache.hadoop.thirdparty.com.google.common.annotations.VisibleForTesting;
-import org.apache.hadoop.thirdparty.com.google.common.base.Strings;
-import org.apache.hadoop.security.ssl.DelegatingSSLSocketFactory;
-import org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants;
-import org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations;
-import org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.APN_VERSION;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.APPEND_ACTION;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.APPEND_BLOB_TYPE;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.APPLICATION_JSON;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.APPLICATION_OCTET_STREAM;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.CHECK_ACCESS;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.CLIENT_VERSION;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.COMMA;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.DEFAULT_TIMEOUT;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.DIRECTORY;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.EMPTY_STRING;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.FILE;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.FILESYSTEM;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.FLUSH_ACTION;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.FORWARD_SLASH;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.FORWARD_SLASH_ENCODE;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.HTTP_METHOD_DELETE;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.HTTP_METHOD_GET;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.HTTP_METHOD_HEAD;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.HTTP_METHOD_PATCH;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.HTTP_METHOD_PUT;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.JAVA_VENDOR;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.JAVA_VERSION;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.OS_ARCH;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.OS_NAME;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.OS_VERSION;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.PLUS;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.PLUS_ENCODE;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.SEMICOLON;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.SET_PROPERTIES_ACTION;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.SINGLE_WHITE_SPACE;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.STAR;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.TRUE;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.UTF_8;
+import static org.apache.hadoop.fs.azurebfs.constants.FileSystemConfigurations.DEFAULT_DELETE_CONSIDERED_IDEMPOTENT;
+import static org.apache.hadoop.fs.azurebfs.constants.FileSystemUriSchemes.HTTPS_SCHEME;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.ACCEPT;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.ACCEPT_CHARSET;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.CONTENT_TYPE;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.IF_MATCH;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.IF_NONE_MATCH;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.RANGE;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.USER_AGENT;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.X_HTTP_METHOD_OVERRIDE;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.X_MS_PROPERTIES;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.X_MS_RENAME_SOURCE;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.X_MS_VERSION;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_FS_ACTION;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARAM_ACTION;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARAM_BLOBTYPE;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARAM_CLOSE;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARAM_CONTINUATION;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARAM_DIRECTORY;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARAM_FLUSH;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARAM_MAXRESULTS;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARAM_POSITION;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARAM_RECURSIVE;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARAM_RESOURCE;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARAM_RETAIN_UNCOMMITTED_DATA;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARAM_TIMEOUT;
+import static org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathClose;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.hadoop.fs.azurebfs.AbfsConfiguration;
+import org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants;
+import org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations;
+import org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AzureBlobFileSystemException;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.InvalidUriException;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.SASTokenProviderException;
-import org.apache.hadoop.fs.azurebfs.extensions.ExtensionHelper;
-import org.apache.hadoop.fs.azurebfs.extensions.SASTokenProvider;
-import org.apache.hadoop.fs.azurebfs.AbfsConfiguration;
 import org.apache.hadoop.fs.azurebfs.contracts.services.AppendRequestParameters;
 import org.apache.hadoop.fs.azurebfs.contracts.services.ReadRequestParameters;
 import org.apache.hadoop.fs.azurebfs.contracts.services.ReadRequestParameters.Mode;
+import org.apache.hadoop.fs.azurebfs.extensions.ExtensionHelper;
+import org.apache.hadoop.fs.azurebfs.extensions.SASTokenProvider;
 import org.apache.hadoop.fs.azurebfs.oauth2.AccessTokenProvider;
 import org.apache.hadoop.fs.azurebfs.utils.DateTimeUtils;
 import org.apache.hadoop.io.IOUtils;
-
-import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.*;
-import static org.apache.hadoop.fs.azurebfs.constants.FileSystemConfigurations.DEFAULT_DELETE_CONSIDERED_IDEMPOTENT;
-import static org.apache.hadoop.fs.azurebfs.constants.FileSystemUriSchemes.HTTPS_SCHEME;
-import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.*;
-import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.*;
+import org.apache.hadoop.security.ssl.DelegatingSSLSocketFactory;
+import org.apache.hadoop.thirdparty.com.google.common.annotations.VisibleForTesting;
+import org.apache.hadoop.thirdparty.com.google.common.base.Strings;
 
 /**
  * AbfsClient.
@@ -562,8 +617,8 @@ public class AbfsClient implements Closeable {
     return op;
   }
 
-  public AbfsRestOperation read(final String path,
-      final byte[] buffer,
+  public AbfsRestOperation read( String path,
+      byte[] buffer,
       String cachedSasToken,
       ReadRequestParameters readRequestParameters)
       throws AzureBlobFileSystemException {
@@ -595,6 +650,8 @@ public class AbfsClient implements Closeable {
         sasTokenForReuse);
     if (readRequestParameters.getMode() == Mode.FASTPATH_CONNECTION_MODE) {
       op.setFastpathFileHandle(readRequestParameters.getFastpathFileHandle());
+    } else if (readRequestParameters.isRESTfallback()) {
+      op.updateClientReqIdToIndicateRESTFallback();
     }
 
     try {
@@ -602,7 +659,79 @@ public class AbfsClient implements Closeable {
     } catch (AzureBlobFileSystemException ex) {
       // if fastpath request failed due to HTTP 500 and above, retry on REST
       if ((readRequestParameters.getMode() == Mode.FASTPATH_CONNECTION_MODE)
-          && (op.getResult().getStatusCode() >= 500)) {
+          && ((op.getResult() == null) || // Fastpath threw irrecoverable exception
+          (op.getResult().getStatusCode() >= 500))) {
+        readRequestParameters.setMode(Mode.HTTP_CONNECTION_MODE);
+        // TODO  once clientCorrId change is ready, pass this through tracing context
+        readRequestParameters.setRESTfallback(true);
+        return read(path, buffer, cachedSasToken, readRequestParameters);
+      }
+
+      // for other scenarios, throw the error back
+      throw ex;
+    }
+
+    return op;
+  }
+
+  public AbfsRestOperation read(final String path,
+      final byte[] buffer,
+      String cachedSasToken,
+      ReadRequestParameters readRequestParameters,
+      int errStatus)
+      throws AzureBlobFileSystemException {
+    final List<AbfsHttpHeader> requestHeaders = createDefaultHeaders();
+    long position = readRequestParameters.getStoreFilePosition();
+    requestHeaders.add(new AbfsHttpHeader(RANGE,
+        String.format("bytes=%d-%d", position, position + readRequestParameters.getReadLength() - 1)));
+    requestHeaders.add(new AbfsHttpHeader(IF_MATCH, readRequestParameters.geteTag()));
+
+    final AbfsUriQueryBuilder abfsUriQueryBuilder = createDefaultUriQueryBuilder();
+    // AbfsInputStream/AbfsOutputStream reuse SAS tokens for better performance
+    String sasTokenForReuse = appendSASTokenToQuery(path,
+        SASTokenProvider.READ_OPERATION,
+        abfsUriQueryBuilder,
+        cachedSasToken);
+
+    AbfsRestOperationType opType = (readRequestParameters.getMode() == Mode.FASTPATH_CONNECTION_MODE)
+        ? AbfsRestOperationType.FastpathRead
+        : AbfsRestOperationType.ReadFile;
+
+    if (errStatus == 404) {
+      opType = org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrRead404;
+    } else if (errStatus == 500) {
+      opType = org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrRead500;
+    } else if (errStatus == 503) {
+      opType = org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrRead503;
+    } else if (errStatus == 1000) {
+      opType = org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathReadNonMock;
+    }
+
+    final URL url = createRequestUrl(path, abfsUriQueryBuilder.toString());
+    final AbfsRestOperation op = new AbfsRestOperation(
+        opType,
+        this,
+        HTTP_METHOD_GET,
+        url,
+        requestHeaders,
+        buffer,
+        readRequestParameters.getBufferOffset(),
+        readRequestParameters.getReadLength(),
+        sasTokenForReuse);
+    if (readRequestParameters.getMode() == Mode.FASTPATH_CONNECTION_MODE) {
+      op.setFastpathFileHandle(readRequestParameters.getFastpathFileHandle());
+    } else if (readRequestParameters.isRESTfallback()) {
+      op.updateClientReqIdToIndicateRESTFallback();
+    }
+
+    try {
+      op.execute();
+    } catch (AzureBlobFileSystemException ex) {
+      // if fastpath request failed due to HTTP 500 and above, retry on REST
+      if ((readRequestParameters.getMode() == Mode.FASTPATH_CONNECTION_MODE)
+          && ((op.getResult() == null) || // Fastpath threw irrecoverable exception
+          (op.getResult().getStatusCode() >= 500))) {
+        System.out.println("Falling back to REST");
         readRequestParameters.setMode(Mode.HTTP_CONNECTION_MODE);
         // TODO  once clientCorrId change is ready, pass this through tracing context
         readRequestParameters.setRESTfallback(true);
@@ -843,6 +972,87 @@ public class AbfsClient implements Closeable {
     return op;
   }
 
+  public AbfsRestOperation fastPathClose(final String path, final String eTag, final String fastpathFileHandle, int errStatus)
+      throws AzureBlobFileSystemException {
+    final List<AbfsHttpHeader> requestHeaders = createDefaultHeaders();
+    requestHeaders.add(new AbfsHttpHeader(IF_MATCH, eTag));
+
+    final AbfsUriQueryBuilder abfsUriQueryBuilder = createDefaultUriQueryBuilder();
+    // AbfsInputStream/AbfsOutputStream reuse SAS tokens for better performance
+    String sasTokenForReuse = appendSASTokenToQuery(path, SASTokenProvider.READ_OPERATION,
+        abfsUriQueryBuilder, null);
+
+    final URL url = createRequestUrl(path, abfsUriQueryBuilder.toString());
+    AbfsRestOperationType opType = FastpathClose;
+    if (errStatus == 500) {
+      opType = AbfsRestOperationType.FastpathErrClose500;
+    } else if (errStatus == 1000) {
+      opType = org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathCloseNonMock;
+    }
+
+    final AbfsRestOperation op = new AbfsRestOperation(
+        opType,
+        this,
+        HTTP_METHOD_GET,
+        url,
+        requestHeaders,
+        sasTokenForReuse);
+    op.setFastpathFileHandle(fastpathFileHandle);
+    op.execute();
+
+    return op;
+  }
+
+  //todo - remove
+  int readErrStatus = -1;
+  public void setReadErrStatus(int status) {
+    readErrStatus = status;
+  }
+  int openErrStatus = -1;
+  public void setOpenErrStatus(int status) {
+    openErrStatus = status;
+  }
+  public int getOpenErrStatus() {
+    return openErrStatus;
+  }
+  int closeErrStatus = -1;
+  public void setCloseErrStatus(int status) {
+    closeErrStatus = status;
+  }
+  public AbfsRestOperation fastPathOpen(final String path, final String eTag, int errStatus)
+      throws AzureBlobFileSystemException {
+    final List<AbfsHttpHeader> requestHeaders = createDefaultHeaders();
+    requestHeaders.add(new AbfsHttpHeader(IF_MATCH, eTag));
+
+    final AbfsUriQueryBuilder abfsUriQueryBuilder = createDefaultUriQueryBuilder();
+    // AbfsInputStream/AbfsOutputStream reuse SAS tokens for better performance
+    String sasTokenForReuse = appendSASTokenToQuery(path, SASTokenProvider.READ_OPERATION,
+        abfsUriQueryBuilder, null);
+
+    final URL url = createRequestUrl(path, abfsUriQueryBuilder.toString());
+
+    AbfsRestOperationType opType = AbfsRestOperationType.FastpathOpen;
+
+    if (errStatus == 404) {
+      opType = AbfsRestOperationType.FastpathErrOpen404;
+    } else if (errStatus == 500) {
+      opType = AbfsRestOperationType.FastpathErrOpen500;
+    } else if (errStatus == 1000) {
+      opType = AbfsRestOperationType.FastpathOpenNonMock;
+    }
+
+    final AbfsRestOperation op = new AbfsRestOperation(
+        opType,
+        this,
+        HTTP_METHOD_GET,
+        url,
+        requestHeaders,
+        sasTokenForReuse);
+    op.execute();
+
+    return op;
+  }
+
   public AbfsRestOperation fastPathClose(final String path, final String eTag, final String fastpathFileHandle)
       throws AzureBlobFileSystemException {
     final List<AbfsHttpHeader> requestHeaders = createDefaultHeaders();
@@ -856,7 +1066,7 @@ public class AbfsClient implements Closeable {
     final URL url = createRequestUrl(path, abfsUriQueryBuilder.toString());
 
     final AbfsRestOperation op = new AbfsRestOperation(
-        AbfsRestOperationType.FastpathClose,
+        FastpathClose,
         this,
         HTTP_METHOD_GET,
         url,
@@ -1068,4 +1278,9 @@ public class AbfsClient implements Closeable {
   protected AbfsCounters getAbfsCounters() {
     return abfsCounters;
   }
+  //TODO - remove
+  public boolean isFastpathEnabled() {
+    return abfsConfiguration.isFastpathEnabled();
+  }
+
 }

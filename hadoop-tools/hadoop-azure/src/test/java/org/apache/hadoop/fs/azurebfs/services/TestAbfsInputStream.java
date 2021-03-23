@@ -19,25 +19,13 @@
 package org.apache.hadoop.fs.azurebfs.services;
 
 import java.io.IOException;
-
-import org.junit.Assert;
-import org.junit.Test;
 import java.util.Arrays;
 
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.FORWARD_SLASH;
+import static org.apache.hadoop.test.LambdaTestUtils.intercept;
 import org.assertj.core.api.Assertions;
-
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.FSDataOutputStream;
-import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.fs.azurebfs.AbstractAbfsIntegrationTest;
-import org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem;
-import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AzureBlobFileSystemException;
-import org.apache.hadoop.fs.azurebfs.contracts.exceptions.TimeoutException;
-import org.apache.hadoop.fs.azurebfs.contracts.services.ReadBufferStatus;
-import org.apache.hadoop.fs.azurebfs.utils.TestCachedSASToken;
-
+import org.junit.Assert;
+import org.junit.Test;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
@@ -46,8 +34,17 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import static org.apache.hadoop.test.LambdaTestUtils.intercept;
-import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.FORWARD_SLASH;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.azurebfs.AbstractAbfsIntegrationTest;
+import org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem;
+import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AzureBlobFileSystemException;
+import org.apache.hadoop.fs.azurebfs.contracts.exceptions.TimeoutException;
+import org.apache.hadoop.fs.azurebfs.contracts.services.ReadBufferStatus;
+import org.apache.hadoop.fs.azurebfs.utils.TestCachedSASToken;
 
 /**
  * Unit test AbfsInputStream.
@@ -69,6 +66,16 @@ public class TestAbfsInputStream extends
   private static final int INCREASED_READ_BUFFER_AGE_THRESHOLD =
       REDUCED_READ_BUFFER_AGE_THRESHOLD * 10; // 30 sec
   private static final int ALWAYS_READ_BUFFER_SIZE_TEST_FILE_SIZE = 16 * ONE_MB;
+  java.util.List<String> filesToUnregister = new java.util.ArrayList<String>();
+
+  @org.junit.After
+  public void tearDown() throws Exception {
+  super.teardown();
+    java.util.Iterator<String> itr = filesToUnregister.iterator();
+    while(itr.hasNext()) {
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(itr.next());
+    }
+  }
 
   private AbfsRestOperation getMockRestOp() {
     AbfsRestOperation op = mock(AbfsRestOperation.class);
@@ -79,7 +86,15 @@ public class TestAbfsInputStream extends
     return op;
   }
 
-  private AbfsClient getMockAbfsClient() {
+  private AbfsRestOperation getMockOpenOp() {
+    AbfsRestOperation op = mock(AbfsRestOperation.class);
+    AbfsHttpOperation httpOp = mock(AbfsHttpOperation.class);
+    when(httpOp.getFastpathFileHandle()).thenReturn(java.util.UUID.randomUUID().toString());
+    when(op.getResult()).thenReturn(httpOp);
+    return op;
+  }
+
+  private AbfsClient getMockAbfsClient() throws AzureBlobFileSystemException {
     // Mock failure for client.read()
     AbfsClient client = mock(AbfsClient.class);
     AbfsPerfTracker tracker = new AbfsPerfTracker(
@@ -87,12 +102,17 @@ public class TestAbfsInputStream extends
         this.getAccountName(),
         this.getConfiguration());
     when(client.getAbfsPerfTracker()).thenReturn(tracker);
-
+    when(client.getOpenErrStatus()).thenReturn(-1);
+    AbfsRestOperation fastpathOpenOp = getMockOpenOp();
+    when(client.fastPathOpen(any(), any())).thenReturn(fastpathOpenOp);
+//    when(client.fastPathClose(any(), any(), any(), any())).thenReturn(getMockOpenOp());
+//    when(client.fastPathClose(any(), any(), any())).thenReturn(getMockOpenOp());
     return client;
   }
 
   private AbfsInputStream getAbfsInputStream(AbfsClient mockAbfsClient, String fileName) {
     AbfsInputStreamContext inputStreamContext = new AbfsInputStreamContext(-1);
+
     // Create AbfsInputStream with the client instance
     AbfsInputStream inputStream = new AbfsInputStream(
         mockAbfsClient,
@@ -100,7 +120,8 @@ public class TestAbfsInputStream extends
         FORWARD_SLASH + fileName,
         THREE_KB,
         inputStreamContext.withReadBufferSize(ONE_KB).withReadAheadQueueDepth(10).withReadAheadBlockSize(ONE_KB),
-        "eTag");
+        "eTag", true);
+
 
     inputStream.setCachedSasToken(
         TestCachedSASToken.getTestCachedSASTokenInstance());
@@ -127,7 +148,7 @@ public class TestAbfsInputStream extends
             .withReadAheadQueueDepth(readAheadQueueDepth)
             .withShouldReadBufferSizeAlways(alwaysReadBufferSize)
             .withReadAheadBlockSize(readAheadBlockSize),
-        eTag);
+        eTag, true);
 
     inputStream.setCachedSasToken(
         TestCachedSASToken.getTestCachedSASTokenInstance());
@@ -153,7 +174,10 @@ public class TestAbfsInputStream extends
 //    verify(client, times(count)).read(any(String.class), any(Long.class),
 //        any(byte[].class), any(Integer.class), any(Integer.class),
 //        any(String.class), any(String.class));
-    verify(client, times(count)).read(any(), any(), any(), any());
+//    verify(client, times(count)).read(any(String.class), any(byte[].class), any(String.class),
+//        any(org.apache.hadoop.fs.azurebfs.contracts.services.ReadRequestParameters.class));
+    //verify(client, times(count)).read(any(), any(byte[].class), any(),any());
+    verify(client.read(any(), any(byte[].class), any(),any()), times(count));
   }
 
   private void checkEvictedStatus(AbfsInputStream inputStream, int position, boolean expectedToThrowException)
@@ -206,7 +230,8 @@ public class TestAbfsInputStream extends
         .doThrow(new TimeoutException("Internal Server error RAH-Thread-Z"))
         .doReturn(successOp) // Any extra calls to read, pass it.
         .when(client)
-        .read(any(), any(), any(), any());
+        .read(any(), any(byte[].class), any(),
+            any());
 //        .read(any(String.class), any(Long.class), any(byte[].class),
 //            any(Integer.class), any(Integer.class), any(String.class),
 //            any(String.class));
@@ -706,9 +731,15 @@ public class TestAbfsInputStream extends
     try (FSDataOutputStream outputStream = fs.create(testFilePath)) {
       int bytesWritten = 0;
       while (bytesWritten < testFileSize) {
+        org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+            (int)testFileSize, testFilePath.getName(), buffer, 0, buffer.length);
         outputStream.write(buffer);
         bytesWritten += buffer.length;
       }
+      if (filesToUnregister.contains(testFilePath.getName())) {
+        org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(testFilePath.getName());
+      }
+      filesToUnregister.add(testFilePath.getName());
     }
 
     Assertions.assertThat(fs.getFileStatus(testFilePath).getLen())

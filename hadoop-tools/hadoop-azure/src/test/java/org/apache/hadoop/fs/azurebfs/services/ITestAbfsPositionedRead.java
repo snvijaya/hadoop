@@ -50,10 +50,12 @@ public class ITestAbfsPositionedRead extends AbstractAbfsIntegrationTest {
     describe("Testing positioned reads in AbfsInputStream");
     Path dest = path(methodName.getMethodName());
 
-    byte[] data = ContractTestUtils.dataset(TEST_FILE_DATA_SIZE, 'a', 'z');
+    byte[] data = ContractTestUtils.dataset(1024, 'a', 'z');
     ContractTestUtils.writeDataset(getFileSystem(), dest, data, data.length,
-        TEST_FILE_DATA_SIZE, true);
+        1024, true);
     int bytesToRead = 10;
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(1024,dest.getName(), data, 0, data.length);
+
     try (FSDataInputStream inputStream = getFileSystem().open(dest)) {
       assertTrue(
           "unexpected stream type "
@@ -76,13 +78,13 @@ public class ITestAbfsPositionedRead extends AbstractAbfsIntegrationTest {
       Assertions
           .assertThat(Arrays.copyOfRange(
               ((AbfsInputStream) inputStream.getWrappedStream()).getBuffer(), 0,
-              TEST_FILE_DATA_SIZE))
+              1024))
           .describedAs(
               "AbfsInputStream pread did not read more data into its buffer")
           .containsExactly(data);
       // Check statistics
       assertStatistics(inputStream.getIOStatistics(), bytesToRead, 1, 1,
-          TEST_FILE_DATA_SIZE);
+          1024);
 
       readPos = 50;
       Assertions
@@ -96,13 +98,15 @@ public class ITestAbfsPositionedRead extends AbstractAbfsIntegrationTest {
               Arrays.copyOfRange(data, readPos, readPos + bytesToRead));
       // Check statistics
       assertStatistics(inputStream.getIOStatistics(), 2 * bytesToRead, 2, 1,
-          TEST_FILE_DATA_SIZE);
+          1024);
       // Did positioned read from pos 0 and then 50 but the stream pos should
       // remain at 0.
       Assertions.assertThat(inputStream.getPos())
           .describedAs("AbfsInputStream positioned reads moved stream position")
           .isEqualTo(0);
     }
+
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(dest.getName());
   }
 
   private void assertStatistics(IOStatistics ioStatistics,
@@ -139,6 +143,9 @@ public class ITestAbfsPositionedRead extends AbstractAbfsIntegrationTest {
         TEST_FILE_DATA_SIZE, true);
     FutureDataInputStreamBuilder builder = getFileSystem().openFile(dest);
     builder.opt(ConfigurationKeys.FS_AZURE_BUFFERED_PREAD_DISABLE, true);
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+        TEST_FILE_DATA_SIZE, dest.getName(), data, 0, data.length);
+
     FSDataInputStream inputStream = null;
     try {
       inputStream = builder.build().get();
@@ -220,6 +227,8 @@ public class ITestAbfsPositionedRead extends AbstractAbfsIntegrationTest {
           .doesNotContain(data);
       assertStatistics(inputStream.getIOStatistics(), 4 * bytesToRead, 4, 4,
           TEST_FILE_DATA_SIZE + 3 * bytesToRead);
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+          dest.getName());
     } finally {
       inputStream.close();
     }

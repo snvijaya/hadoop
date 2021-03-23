@@ -61,10 +61,17 @@ public class ITestAzureBlobFileSystemE2E extends AbstractAbfsIntegrationTest {
     final AzureBlobFileSystem fs = getFileSystem();
     final Path testFilePath = new Path(methodName.getMethodName());
     testWriteOneByteToFile(testFilePath);
+    byte[] buff = new byte[1];
+    buff[0] = TEST_BYTE;
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+        buff.length, testFilePath.getName(), buff, 0, buff.length);
+
     try(FSDataInputStream inputStream = fs.open(testFilePath,
         TEST_DEFAULT_BUFFER_SIZE)) {
       assertEquals(TEST_BYTE, inputStream.read());
     }
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+        testFilePath.getName());
   }
 
   @Test (expected = IOException.class)
@@ -87,6 +94,7 @@ public class ITestAzureBlobFileSystemE2E extends AbstractAbfsIntegrationTest {
     try (FSDataInputStream readStream = fs.open(testFilePath)) {
       assertEquals(readBufferSize,
           readStream.read(bytesToRead, 0, readBufferSize));
+
       try (FSDataOutputStream writeStream = fs.create(testFilePath)) {
         writeStream.write(b);
         writeStream.flush();
@@ -137,6 +145,8 @@ public class ITestAzureBlobFileSystemE2E extends AbstractAbfsIntegrationTest {
     try (FSDataOutputStream stream = fs.create(testFilePath)) {
       stream.write(b, TEST_OFFSET, b.length - TEST_OFFSET);
     }
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+        b.length - TEST_OFFSET, testFilePath.getName(), b, TEST_OFFSET, b.length - TEST_OFFSET);
 
     final byte[] r = new byte[TEST_DEFAULT_READ_BUFFER_SIZE];
     FSDataInputStream inputStream = fs.open(testFilePath, TEST_DEFAULT_BUFFER_SIZE);
@@ -146,6 +156,8 @@ public class ITestAzureBlobFileSystemE2E extends AbstractAbfsIntegrationTest {
     assertArrayEquals(r, Arrays.copyOfRange(b, TEST_OFFSET, b.length));
 
     inputStream.close();
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+        testFilePath.getName());
   }
 
   @Test
@@ -157,6 +169,9 @@ public class ITestAzureBlobFileSystemE2E extends AbstractAbfsIntegrationTest {
     new Random().nextBytes(writeBuffer);
     write(testFilePath, writeBuffer);
 
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+        writeBuffer.length, testFilePath.getName(), writeBuffer, 0, writeBuffer.length);
+
     final byte[] readBuffer = new byte[5 * 1000 * 1024];
     FSDataInputStream inputStream = fs.open(testFilePath, TEST_DEFAULT_BUFFER_SIZE);
     int offset = 0;
@@ -166,6 +181,8 @@ public class ITestAzureBlobFileSystemE2E extends AbstractAbfsIntegrationTest {
 
     assertArrayEquals(readBuffer, writeBuffer);
     inputStream.close();
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+        testFilePath.getName());
   }
 
   @Test
@@ -173,13 +190,19 @@ public class ITestAzureBlobFileSystemE2E extends AbstractAbfsIntegrationTest {
     final AzureBlobFileSystem fs = getFileSystem();
     final Path testFilePath = new Path(methodName.getMethodName());
     testWriteOneByteToFile(testFilePath);
-
+    byte[] buff = new byte[1];
+    buff[0] = 'a';
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+        buff.length, testFilePath.getName(), buff, 0, buff.length);
+    fs.getAbfsClient().setReadErrStatus(404);
     FSDataInputStream inputStream = fs.open(testFilePath, TEST_DEFAULT_BUFFER_SIZE);
     fs.delete(testFilePath, true);
     assertFalse(fs.exists(testFilePath));
 
     intercept(FileNotFoundException.class,
             () -> inputStream.read(new byte[1]));
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+        testFilePath.getName());
   }
 
   @Test

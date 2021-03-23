@@ -27,6 +27,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.microsoft.fastpath.exceptions.FastpathException;
 import org.apache.hadoop.fs.azurebfs.AbfsStatistic;
 import org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants;
 import org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations;
@@ -229,14 +230,15 @@ public class AbfsRestOperation {
             httpOperation = new AbfsFastpathConnection(operationType, url,
                 method,
                 client.getAuthType(), client.getAccessToken(), requestHeaders, fastpathFileHandle);
+            httpOperation.updateIsFastpath(true);
           } else {
             httpOperation  = new AbfsHttpConnection(url, method, requestHeaders);
-            incrementCounter(AbfsStatistic.CONNECTIONS_MADE, 1);
             ((AbfsHttpConnection) httpOperation).getConnection()
                 .setRequestProperty(HttpHeaderConfigurations.AUTHORIZATION,
                     client.getAccessToken());
              httpOperation.updateClientReqIdToIndicateRESTFallback(isRESTFallback);
           }
+          incrementCounter(AbfsStatistic.CONNECTIONS_MADE, 1);
           break;
         case SAS:
           httpOperation  = new AbfsHttpConnection(url, method, requestHeaders);
@@ -281,13 +283,14 @@ public class AbfsRestOperation {
       if (httpOperation != null) {
         hostname = httpOperation.getHost();
       }
-      LOG.warn("Unknown host name: %s. Retrying to resolve the host name...",
-          hostname);
+      LOG.warn(String.format("Unknown host name: %s. Retrying to resolve the host name...",
+          hostname));
       if (!client.getRetryPolicy().shouldRetry(retryCount, -1)) {
         throw new InvalidAbfsRestOperationException(ex);
       }
       return false;
     } catch (IOException ex) {
+      System.out.println("HttpRequestFailure : " + ex.getMessage());
       if (LOG.isDebugEnabled()) {
         if (httpOperation != null) {
           LOG.debug("HttpRequestFailure: " + httpOperation.toString(), ex);
@@ -296,7 +299,8 @@ public class AbfsRestOperation {
         }
       }
 
-      if (!client.getRetryPolicy().shouldRetry(retryCount, -1)) {
+      if ((ex instanceof FastpathException) ||
+          (!client.getRetryPolicy().shouldRetry(retryCount, -1))) {
         throw new InvalidAbfsRestOperationException(ex);
       }
 
@@ -311,7 +315,12 @@ public class AbfsRestOperation {
     } finally {
       AbfsClientThrottlingIntercept.updateMetrics(operationType, httpOperation);
     }
-
+    if (isAFastpathRequest()) {
+      System.out.println("-----------------------");
+      System.out.println(String.format("HttpRequest: %s: %s", operationType,
+          httpOperation.toString()));
+      System.out.println("-----------------------");
+    }
     LOG.debug("HttpRequest: {}: {}", operationType, httpOperation.toString());
 
     if (client.getRetryPolicy().shouldRetry(retryCount, httpOperation.getStatusCode())) {
@@ -328,6 +337,16 @@ public class AbfsRestOperation {
     case FastpathOpen:
     case FastpathRead:
     case FastpathClose:
+      // todo-remove
+    case FastpathErrOpen404:
+        case FastpathErrOpen500:
+        case FastpathErrClose500:
+        case FastpathErrRead404:
+        case FastpathErrRead503:
+        case FastpathErrRead500:
+    case FastpathOpenNonMock:
+    case FastpathReadNonMock:
+    case FastpathCloseNonMock:
       return true;
     default:
       return false;

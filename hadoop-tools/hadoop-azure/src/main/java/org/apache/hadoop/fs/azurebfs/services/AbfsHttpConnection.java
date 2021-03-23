@@ -62,6 +62,11 @@ public class AbfsHttpConnection extends AbfsHttpOperation {
     return connection.getHeaderField(httpHeader);
   }
 
+  public String getFastpathFileHandle()
+  {
+    return "";
+  }
+
   public AbfsHttpConnection(final URL url, final String method, List<AbfsHttpHeader> requestHeaders) throws IOException {
     super(url, method, requestHeaders);
     init(url, method, requestHeaders);

@@ -33,6 +33,17 @@ import org.apache.hadoop.fs.Path;
 public class ITestFileSystemProperties extends AbstractAbfsIntegrationTest {
   private static final int TEST_DATA = 100;
   private static final Path TEST_PATH = new Path("/testfile");
+  java.util.List<String> filesToUnregister = new java.util.ArrayList<String>();
+
+  @org.junit.After
+  public void tearDown() throws Exception {
+    super.teardown();
+    java.util.Iterator<String> itr = filesToUnregister.iterator();
+    while(itr.hasNext()) {
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(itr.next());
+    }
+  }
+
   public ITestFileSystemProperties() throws Exception {
   }
 
@@ -53,6 +64,9 @@ public class ITestFileSystemProperties extends AbstractAbfsIntegrationTest {
     try(FSDataOutputStream stream = fs.create(TEST_PATH)) {
       stream.write(TEST_DATA);
     }
+    byte[] buffer = new byte[]{(byte) (TEST_DATA & 0xFF)};
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+        buffer.length, TEST_PATH.getName(), buffer, 0, buffer.length);
 
     FileStatus fileStatus = fs.getFileStatus(TEST_PATH);
     assertEquals(1, fileStatus.getLen());

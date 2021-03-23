@@ -44,6 +44,11 @@ public class ITestAbfsInputStreamSmallFileReads extends ITestAbfsInputStream {
   public ITestAbfsInputStreamSmallFileReads() throws Exception {
   }
 
+  @org.junit.After
+  public void tearDown() throws Exception {
+    super.teardown();
+  }
+
   @Test
   public void testOnlyOneServerCallIsMadeWhenTheConfIsTrue() throws Exception {
     testNumBackendCalls(true);

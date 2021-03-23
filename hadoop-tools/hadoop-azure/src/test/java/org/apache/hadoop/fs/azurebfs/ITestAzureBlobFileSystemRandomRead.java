@@ -20,9 +20,13 @@ package org.apache.hadoop.fs.azurebfs;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.Random;
-import java.util.concurrent.Callable;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 
+import static org.apache.hadoop.fs.azurebfs.AbfsStatistic.BYTES_RECEIVED;
+import static org.apache.hadoop.fs.azurebfs.AbfsStatistic.GET_RESPONSES;
+import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.ETAG;
+import static org.apache.hadoop.test.LambdaTestUtils.intercept;
 import org.junit.Assume;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -37,15 +41,9 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.azure.NativeAzureFileSystem;
-import org.apache.hadoop.fs.contract.ContractTestUtils;
-
 import org.apache.hadoop.fs.azurebfs.services.AbfsInputStream;
 import org.apache.hadoop.fs.azurebfs.services.TestAbfsInputStream;
-
-import static org.apache.hadoop.test.LambdaTestUtils.intercept;
-import static org.apache.hadoop.fs.azurebfs.AbfsStatistic.BYTES_RECEIVED;
-import static org.apache.hadoop.fs.azurebfs.AbfsStatistic.GET_RESPONSES;
-import static org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations.ETAG;
+import org.apache.hadoop.fs.contract.ContractTestUtils;
 
 /**
  * Test random read operation.
@@ -76,6 +74,19 @@ public class ITestAzureBlobFileSystemRandomRead extends
   private static final String TEST_FILE_PREFIX = "/TestRandomRead";
   private static final String WASB = "WASB";
   private static final String ABFS = "ABFS";
+
+  java.util.List<String> filesToUnregister = new java.util.ArrayList<String>();
+
+  @org.junit.After
+  public void tearDown() throws Exception {
+    super.teardown();
+    java.util.Iterator<String> itr = filesToUnregister.iterator();
+    while (itr.hasNext()) {
+      org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+          itr.next());
+    }
+  }
+
 
   private static final Logger LOG =
       LoggerFactory.getLogger(ITestAzureBlobFileSystemRandomRead.class);
@@ -722,8 +733,11 @@ public class ITestAzureBlobFileSystemRandomRead extends
       int bytesWritten = 0;
       while (bytesWritten < testFileSize) {
         outputStream.write(buffer);
+        org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+                        (int)testFileSize, testFilePath.getName(), buffer, 0, buffer.length);
         bytesWritten += buffer.length;
       }
+      filesToUnregister.add(testFilePath.getName());
       LOG.info("Closing stream {}", outputStream);
       ContractTestUtils.NanoTimer closeTimer
               = new ContractTestUtils.NanoTimer();

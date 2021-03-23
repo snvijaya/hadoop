@@ -102,6 +102,9 @@ public class ITestAzureBlobFileSystemE2EScale extends
       stream.write(sourceData);
     }
 
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.registerMockFastpathAppend(
+        sourceData.length, testFile.getName(), sourceData, 0, sourceData.length);
+
     final byte[] remoteData = new byte[testBufferSize];
     int bytesRead;
     try (FSDataInputStream inputStream = fs.open(testFile, 4 * ONE_MB)) {
@@ -116,5 +119,7 @@ public class ITestAzureBlobFileSystemE2EScale extends
     assertEquals("bytesRead from read() call", testBufferSize, bytesRead);
     assertArrayEquals("round tripped data", sourceData, remoteData);
 
+    org.apache.hadoop.fs.azurebfs.utils.AbfsTestUtils.unregisterMockFastpathAppend(
+        testFile.getName());
   }
 }

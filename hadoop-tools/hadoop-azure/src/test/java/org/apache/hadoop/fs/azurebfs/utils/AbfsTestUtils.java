@@ -82,4 +82,17 @@ public final class AbfsTestUtils extends AbstractAbfsIntegrationTest{
     }
     LOG.info("Deleted {} test containers", count);
   }
+
+  //TODO- remove
+  public static void registerMockFastpathAppend(String path, byte[] data, int buffOffset, int buffLen) {
+      org.apache.hadoop.fs.azurebfs.services.AbfsFastpathConnection.registerAppend(path, data, buffOffset, buffLen);
+  }
+
+  public static void registerMockFastpathAppend(int fileSize, String path, byte[] data, int buffOffset, int buffLen) {
+    org.apache.hadoop.fs.azurebfs.services.AbfsFastpathConnection.registerAppend(fileSize, path, data, buffOffset, buffLen);
+  }
+
+  public static void unregisterMockFastpathAppend(String path) {
+    org.apache.hadoop.fs.azurebfs.services.AbfsFastpathConnection.unregisterAppend(path);
+  }
 }

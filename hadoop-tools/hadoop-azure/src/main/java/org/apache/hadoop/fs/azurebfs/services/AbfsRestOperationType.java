@@ -43,5 +43,15 @@ public enum AbfsRestOperationType {
     CheckAccess,
     FastpathOpen,
     FastpathRead,
-    FastpathClose
+    FastpathClose,
+  //todo - remove
+  FastpathErrOpen404,
+  FastpathErrOpen500,
+  FastpathErrClose500,
+  FastpathErrRead404,
+  FastpathErrRead503,
+  FastpathErrRead500,
+  FastpathOpenNonMock,
+  FastpathReadNonMock,
+  FastpathCloseNonMock,
 }

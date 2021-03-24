@@ -315,7 +315,8 @@ public class AbfsRestOperation {
     } finally {
       AbfsClientThrottlingIntercept.updateMetrics(operationType, httpOperation);
     }
-    if (isAFastpathRequest()) {
+    if (isAFastpathRequest() ||
+    operationType == org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.ReadFile) {
       System.out.println("-----------------------");
       System.out.println(String.format("HttpRequest: %s: %s", operationType,
           httpOperation.toString()));

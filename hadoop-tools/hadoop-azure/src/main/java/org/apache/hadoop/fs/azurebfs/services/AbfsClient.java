@@ -91,6 +91,7 @@ import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARA
 import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARAM_RETAIN_UNCOMMITTED_DATA;
 import static org.apache.hadoop.fs.azurebfs.constants.HttpQueryParams.QUERY_PARAM_TIMEOUT;
 import static org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathClose;
+import static org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathRead;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -697,14 +698,20 @@ public class AbfsClient implements Closeable {
         ? AbfsRestOperationType.FastpathRead
         : AbfsRestOperationType.ReadFile;
 
-    if (errStatus == 404) {
-      opType = org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrRead404;
-    } else if (errStatus == 500) {
-      opType = org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrRead500;
-    } else if (errStatus == 503) {
-      opType = org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrRead503;
-    } else if (errStatus == 1000) {
-      opType = org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathReadNonMock;
+    if (opType == FastpathRead) {
+      if (errStatus == 404) {
+        opType
+            = org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrRead404;
+      } else if (errStatus == 500) {
+        opType
+            = org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrRead500;
+      } else if (errStatus == 503) {
+        opType
+            = org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathErrRead503;
+      } else if (errStatus == 1000) {
+        opType
+            = org.apache.hadoop.fs.azurebfs.services.AbfsRestOperationType.FastpathReadNonMock;
+      }
     }
 
     final URL url = createRequestUrl(path, abfsUriQueryBuilder.toString());

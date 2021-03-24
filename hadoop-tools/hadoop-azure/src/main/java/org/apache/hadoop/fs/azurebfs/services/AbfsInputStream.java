@@ -165,7 +165,8 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
       this.fastpathFileHandle = ((AbfsFastpathConnection)op.getResult()).getFastpathFileHandle();
       System.out.println("open handle = " + this.fastpathFileHandle);
     } catch (AzureBlobFileSystemException e) {
-      LOG.debug("Fastpath status check failed with {}", e);
+      System.out.println("Fastpath status check (Fastpath open) failed with " + e.getMessage());
+      LOG.debug("Fastpath status check (Fastpath open) failed with {}", e);
       return false;
     }
 
@@ -710,7 +711,7 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
   @Override
   public synchronized void close() throws IOException {
     try {
-      if (isFastPathEnabled) {
+      //if (isFastPathEnabled) {
         if (client.closeErrStatus == -1) {
           client.fastPathClose(path, eTag, fastpathFileHandle);
         } else {
@@ -719,8 +720,9 @@ public class AbfsInputStream extends FSInputStream implements CanUnbuffer,
           }
           client.fastPathClose(path, eTag, fastpathFileHandle, client.closeErrStatus);
         }
-      }
+      //}
     } catch (Exception ex) {
+      System.out.println("Fastpath close failed " + ex.getMessage());
       LOG.debug("Fastpath close failed");
       // ignore any close failure
     }

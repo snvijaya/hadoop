@@ -31,6 +31,12 @@ public class ITestAbfsFastpath
   protected static final int HUNDRED = 100;
   java.util.List<String> filesToUnregister = new java.util.ArrayList<String>();
 
+  @Override
+  public void setup() throws Exception {
+    loadConfiguredFileSystem();
+    super.setup();
+  }
+
   @org.junit.After
   public void tearDown() throws Exception {
     super.teardown();

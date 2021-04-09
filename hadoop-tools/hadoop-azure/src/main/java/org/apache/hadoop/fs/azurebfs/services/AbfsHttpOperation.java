@@ -133,6 +133,10 @@ public class AbfsHttpOperation implements AbfsPerfLoggable {
     return connection.getHeaderField(httpHeader);
   }
 
+  public String getHost() {
+    return url.getHost();
+  }
+
   // Returns a trace message for the request
   @Override
   public String toString() {

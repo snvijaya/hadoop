@@ -27,6 +27,7 @@ import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -177,7 +178,8 @@ public class TestAbfsInputStream extends
 //    verify(client, times(count)).read(any(String.class), any(byte[].class), any(String.class),
 //        any(org.apache.hadoop.fs.azurebfs.contracts.services.ReadRequestParameters.class));
     //verify(client, times(count)).read(any(), any(byte[].class), any(),any());
-    verify(client.read(any(), any(byte[].class), any(),any()), times(count));
+    //verify(client.read(any(), any(byte[].class), any(),any(), eq(0)), times(count));
+    verify(client, times(count)).read(any(), any(byte[].class), any(),any(), eq(0));
   }
 
   private void checkEvictedStatus(AbfsInputStream inputStream, int position, boolean expectedToThrowException)
@@ -231,7 +233,7 @@ public class TestAbfsInputStream extends
         .doReturn(successOp) // Any extra calls to read, pass it.
         .when(client)
         .read(any(), any(byte[].class), any(),
-            any());
+            any(), eq(0));
 //        .read(any(String.class), any(Long.class), any(byte[].class),
 //            any(Integer.class), any(Integer.class), any(String.class),
 //            any(String.class));
@@ -266,7 +268,8 @@ public class TestAbfsInputStream extends
     // Actual read request fails with the failure in readahead thread
     doThrow(new TimeoutException("Internal Server error"))
         .when(client)
-        .read(any(), any(), any(), any());
+        .read(any(), any(byte[].class), any(),
+            any(), eq(0));
 //        .read(any(String.class), any(Long.class), any(byte[].class),
 //            any(Integer.class), any(Integer.class), any(String.class),
 //            any(String.class));
@@ -311,7 +314,8 @@ public class TestAbfsInputStream extends
         .doReturn(successOp) // pass the read for second read request
         .doReturn(successOp) // pass success for post eviction test
         .when(client)
-        .read(any(), any(), any(), any());
+        .read(any(), any(byte[].class), any(),
+            any(), eq(0));
 //        .read(any(String.class), any(Long.class), any(byte[].class),
 //            any(Integer.class), any(Integer.class), any(String.class),
 //            any(String.class));
@@ -366,7 +370,8 @@ public class TestAbfsInputStream extends
         .doThrow(new TimeoutException("Internal Server error for RAH-Y"))
         .doThrow(new TimeoutException("Internal Server error for RAH-Z"))
         .when(client)
-        .read(any(), any(), any(), any());
+        .read(any(), any(byte[].class), any(),
+            any(), eq(0));
 //        .read(any(String.class), any(Long.class), any(byte[].class),
 //            any(Integer.class), any(Integer.class), any(String.class),
 //            any(String.class));
@@ -425,7 +430,8 @@ public class TestAbfsInputStream extends
         .doThrow(new TimeoutException("Internal Server error RAH-Thread-Z"))
         .doReturn(successOp) // Any extra calls to read, pass it.
         .when(client)
-        .read(any(), any(), any(), any());
+        .read(any(), any(byte[].class), any(),
+            any(), eq(0));
 //        .read(any(String.class), any(Long.class), any(byte[].class),
 //            any(Integer.class), any(Integer.class), any(String.class),
 //            any(String.class));
@@ -479,7 +485,8 @@ public class TestAbfsInputStream extends
         .doReturn(successOp) // pass the read for second read request
         .doReturn(successOp) // pass success for post eviction test
         .when(client)
-        .read(any(), any(), any(), any());
+        .read(any(), any(byte[].class), any(),
+            any(), eq(0));
 //        .read(any(String.class), any(Long.class), any(byte[].class),
 //            any(Integer.class), any(Integer.class), any(String.class),
 //            any(String.class));
@@ -534,7 +541,8 @@ public class TestAbfsInputStream extends
         .doThrow(new TimeoutException("Internal Server error for RAH-Y"))
         .doThrow(new TimeoutException("Internal Server error for RAH-Z"))
         .when(client)
-        .read(any(), any(), any(), any());
+        .read(any(), any(byte[].class), any(),
+            any(), eq(0));
 //        .read(any(String.class), any(Long.class), any(byte[].class),
 //            any(Integer.class), any(Integer.class), any(String.class),
 //            any(String.class));

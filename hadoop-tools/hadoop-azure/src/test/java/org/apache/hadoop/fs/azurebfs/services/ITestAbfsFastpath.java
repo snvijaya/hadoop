@@ -47,10 +47,10 @@ public class ITestAbfsFastpath
   public void teste2e() throws Exception {
     int fileSize = ONE_MB;
     final org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem fs = getFileSystem();
-    fs.getAbfsStore().disableMockedSoPath();
+    //fs.getAbfsStore().disableMockedSoPath();
       String fileName = methodName.getMethodName();
       byte[] fileContent = getRandomBytesArray(fileSize);
-      org.apache.hadoop.fs.Path testFilePath = createFileWithContent(fs, fileName, fileContent);
+      org.apache.hadoop.fs.Path testFilePath = new org.apache.hadoop.fs.Path(fileName); //createFileWithContent(fs, fileName, fileContent);
     org.apache.hadoop.fs.FSDataInputStream iStream = fs.open(testFilePath);
     try {
       AbfsInputStream abfsInputStream = (AbfsInputStream) iStream

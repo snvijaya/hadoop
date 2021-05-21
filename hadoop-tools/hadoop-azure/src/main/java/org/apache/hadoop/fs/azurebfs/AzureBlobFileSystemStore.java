@@ -17,6 +17,7 @@
  */
 package org.apache.hadoop.fs.azurebfs;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -56,6 +57,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.hadoop.classification.InterfaceAudience;
 import org.apache.hadoop.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -112,7 +114,7 @@ import static org.apache.hadoop.fs.azurebfs.constants.ConfigurationKeys.AZURE_AB
  */
 @InterfaceAudience.Public
 @InterfaceStability.Evolving
-public class AzureBlobFileSystemStore {
+public class AzureBlobFileSystemStore implements Closeable {
   private static final Logger LOG = LoggerFactory.getLogger(AzureBlobFileSystemStore.class);
 
   private AbfsClient client;
@@ -195,6 +197,11 @@ public class AzureBlobFileSystemStore {
 
   String decodeAttribute(byte[] value) throws UnsupportedEncodingException {
     return new String(value, XMS_PROPERTIES_ENCODING);
+  }
+
+  @Override
+  public void close() throws IOException {
+    IOUtils.cleanupWithLogger(LOG, client);
   }
 
   private String[] authorityParts(URI uri) throws InvalidUriAuthorityException, InvalidUriException {

@@ -62,8 +62,6 @@ public class AbfsClient implements Closeable {
   private final String userAgent;
   private final AbfsPerfTracker abfsPerfTracker;
 
-  private final String accountName;
-  private final AuthType authType;
   private AccessTokenProvider tokenProvider;
   private final AbfsCounters abfsCounters;
 

@@ -223,6 +223,14 @@ public class AbfsConfiguration{
   }
 
   /**
+   * Gets the Azure Storage account name corresponding to this instance of configuration.
+   * @return the Azure Storage account name
+   */
+  public String getAccountName() {
+    return accountName;
+  }
+
+  /**
    * Appends an account name to a configuration key yielding the
    * account-specific form.
    * @param key Account-agnostic configuration key

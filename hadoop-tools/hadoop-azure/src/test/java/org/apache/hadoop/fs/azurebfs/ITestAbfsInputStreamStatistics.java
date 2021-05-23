@@ -246,8 +246,7 @@ public class ITestAbfsInputStreamStatistics
 
     // Creating an AbfsInputStreamContext instance with null StreamStatistics.
     AbfsInputStreamContext abfsInputStreamContext =
-        new AbfsInputStreamContext(
-            getConfiguration().getSasTokenRenewPeriodForStreamsInSeconds())
+        new AbfsInputStreamContext()
             .withReadBufferSize(getConfiguration().getReadBufferSize())
             .withReadAheadQueueDepth(getConfiguration().getReadAheadQueueDepth())
             .withStreamStatistics(null)
@@ -265,7 +264,7 @@ public class ITestAbfsInputStreamStatistics
 
       // AbfsRestOperation Instance required for eTag.
       AbfsRestOperation abfsRestOperation =
-          fs.getAbfsClient().getPathStatus(nullStatFilePath.toUri().getPath(), false);
+          fs.getAbfsClient().getPathStatus(nullStatFilePath.toUri().getPath());
 
       // AbfsInputStream with no StreamStatistics.
       in = new AbfsInputStream(fs.getAbfsClient(), null,

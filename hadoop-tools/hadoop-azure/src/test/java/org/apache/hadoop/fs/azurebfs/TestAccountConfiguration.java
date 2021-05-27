@@ -37,7 +37,6 @@ import static org.apache.hadoop.fs.azurebfs.constants.ConfigurationKeys.FS_AZURE
 import static org.apache.hadoop.fs.azurebfs.constants.ConfigurationKeys.FS_AZURE_ACCOUNT_OAUTH_CLIENT_ID;
 import static org.apache.hadoop.fs.azurebfs.constants.ConfigurationKeys.FS_AZURE_ACCOUNT_OAUTH_CLIENT_SECRET;
 import static org.apache.hadoop.fs.azurebfs.constants.ConfigurationKeys.FS_AZURE_ACCOUNT_TOKEN_PROVIDER_TYPE_PROPERTY_NAME;
-import static org.apache.hadoop.fs.azurebfs.constants.ConfigurationKeys.FS_AZURE_SAS_TOKEN_PROVIDER_TYPE;
 
 /**
  * Tests correct precedence of various configurations that might be returned.
@@ -302,33 +301,6 @@ public class TestAccountConfiguration {
   }
 
   @Test
-  public void testSASProviderPrecedence()
-      throws IOException, IllegalAccessException {
-    final String accountName = "account";
-
-    final Configuration conf = new Configuration();
-    final AbfsConfiguration abfsConf = new AbfsConfiguration(conf, accountName);
-
-    // AccountSpecific: SAS with provider set as SAS_Provider_1
-    abfsConf.set(FS_AZURE_ACCOUNT_AUTH_TYPE_PROPERTY_NAME + "." + accountName,
-        "SAS");
-    abfsConf.set(FS_AZURE_SAS_TOKEN_PROVIDER_TYPE + "." + accountName,
-        TEST_SAS_PROVIDER_CLASS_CONFIG_1);
-
-    // Global: SAS with provider set as SAS_Provider_2
-    abfsConf.set(FS_AZURE_ACCOUNT_AUTH_TYPE_PROPERTY_NAME,
-        AuthType.SAS.toString());
-    abfsConf.set(FS_AZURE_SAS_TOKEN_PROVIDER_TYPE,
-        TEST_SAS_PROVIDER_CLASS_CONFIG_2);
-
-    Assertions.assertThat(
-        abfsConf.getSASTokenProvider().getClass().getName())
-        .describedAs(
-            "Account-specific SAS token provider should be in effect.")
-        .isEqualTo(TEST_SAS_PROVIDER_CLASS_CONFIG_1);
-  }
-
-  @Test
   public void testAccessTokenProviderPrecedence()
       throws IllegalAccessException, IOException {
     final String accountName = "account";
@@ -342,10 +314,6 @@ public class TestAccountConfiguration {
 
     // Global: OAuth , AccountSpecific: Custom
     testGlobalAndAccountOAuthPrecedence(abfsConf, AuthType.OAuth,
-        AuthType.Custom);
-
-    // Global: (non-oAuth) SAS , AccountSpecific: Custom
-    testGlobalAndAccountOAuthPrecedence(abfsConf, AuthType.SAS,
         AuthType.Custom);
 
     // Global: Custom , AccountSpecific: -
@@ -435,12 +403,6 @@ public class TestAccountConfiguration {
       providerClassValue = TEST_CUSTOM_PROVIDER_CLASS_CONFIG;
       break;
 
-    case SAS:
-      providerClassKey = FS_AZURE_SAS_TOKEN_PROVIDER_TYPE
-          + (isAccountSetting ? accountNameSuffix : "");
-      providerClassValue = TEST_SAS_PROVIDER_CLASS_CONFIG_1;
-      break;
-
     default: // set nothing
     }
 
@@ -454,7 +416,6 @@ public class TestAccountConfiguration {
 
     abfsConf.unset(FS_AZURE_ACCOUNT_AUTH_TYPE_PROPERTY_NAME + accountNameSuffix);
     abfsConf.unset(FS_AZURE_ACCOUNT_TOKEN_PROVIDER_TYPE_PROPERTY_NAME + accountNameSuffix);
-    abfsConf.unset(FS_AZURE_SAS_TOKEN_PROVIDER_TYPE + accountNameSuffix);
 
     abfsConf.unset(FS_AZURE_ACCOUNT_OAUTH_CLIENT_ENDPOINT + accountNameSuffix);
     abfsConf.unset(FS_AZURE_ACCOUNT_OAUTH_CLIENT_ID + accountNameSuffix);

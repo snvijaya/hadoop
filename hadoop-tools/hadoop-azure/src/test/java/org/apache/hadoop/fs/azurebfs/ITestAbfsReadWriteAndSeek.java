@@ -45,8 +45,9 @@ public class ITestAbfsReadWriteAndSeek extends AbstractAbfsScaleTest {
   @Parameterized.Parameters(name = "Size={0}")
   public static Iterable<Object[]> sizes() {
     return Arrays.asList(new Object[][]{{MIN_BUFFER_SIZE},
-        {DEFAULT_READ_BUFFER_SIZE},
-        {MAX_BUFFER_SIZE}});
+        {DEFAULT_READ_BUFFER_SIZE}}
+        //{MAX_BUFFER_SIZE}}
+        );
   }
 
   private final int size;

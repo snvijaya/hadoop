@@ -484,7 +484,8 @@ public class AzureBlobFileSystemStore implements Closeable {
     }
   }
 
-  private AbfsInputStreamContext populateAbfsInputStreamContext() {
+  @VisibleForTesting
+  protected AbfsInputStreamContext populateAbfsInputStreamContext() {
     return new AbfsInputStreamContext()
             .withReadBufferSize(abfsConfiguration.getReadBufferSize())
             .withReadAheadQueueDepth(abfsConfiguration.getReadAheadQueueDepth())
@@ -1421,7 +1422,7 @@ public class AzureBlobFileSystemStore implements Closeable {
   }
 
   @VisibleForTesting
-  AbfsClient getClient() {
+  public AbfsClient getClient() {
     return this.client;
   }
 }

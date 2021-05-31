@@ -60,6 +60,7 @@ public class AbfsRestOperation {
   private byte[] buffer;
   private int bufferOffset;
   private int bufferLength;
+  private int retryCount = 0;
 
   private AbfsHttpOperation result;
   private AbfsCounters abfsCounters;
@@ -134,8 +135,9 @@ public class AbfsRestOperation {
 
     int retryCount = 0;
     LOG.debug("First execution of REST operation - {}", operationType);
-    while (!executeHttpOperation(retryCount++)) {
+    while (!executeHttpOperation(retryCount)) {
       try {
+        ++retryCount;
         LOG.debug("Retrying REST operation {}. RetryCount = {}",
             operationType, retryCount);
         Thread.sleep(client.getRetryPolicy().getRetryInterval(retryCount));

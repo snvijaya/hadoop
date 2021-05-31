@@ -700,4 +700,9 @@ public class AbfsInputStream extends FSInputStream {
   byte[] getBuffer() {
     return buffer;
   }
+
+  @VisibleForTesting
+  String geteTag() {
+    return eTag;
+  }
 }

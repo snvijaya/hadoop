@@ -132,6 +132,10 @@ public class AbfsClient implements Closeable {
     return sharedKeyCredentials;
   }
 
+  public AuthType getAuthType() {
+    return authType;
+  }
+
   List<AbfsHttpHeader> createDefaultHeaders() {
     final List<AbfsHttpHeader> requestHeaders = new ArrayList<AbfsHttpHeader>();
     requestHeaders.add(new AbfsHttpHeader(X_MS_VERSION, xMsVersion));
@@ -566,7 +570,8 @@ public class AbfsClient implements Closeable {
     return createRequestUrl(EMPTY_STRING, query);
   }
 
-  private URL createRequestUrl(final String path, final String query)
+  @VisibleForTesting
+  protected URL createRequestUrl(final String path, final String query)
           throws AzureBlobFileSystemException {
     final String base = baseUrl.toString();
     String encodedPath = path;

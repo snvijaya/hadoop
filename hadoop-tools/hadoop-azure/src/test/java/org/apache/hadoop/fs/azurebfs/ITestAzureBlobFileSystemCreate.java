@@ -188,7 +188,7 @@ public class ITestAzureBlobFileSystemCreate extends
           out.hsync();
           fs.delete(testPath, false);
           // trigger the first failure
-          intercept(FileNotFoundException.class,
+          throw intercept(FileNotFoundException.class,
               new LambdaTestUtils.VoidCallable() {
                 @Override
                 public void call() throws Exception {

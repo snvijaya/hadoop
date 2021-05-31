@@ -21,6 +21,7 @@ package org.apache.hadoop.fs.azurebfs.services;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.FORWARD_SLASH;
 import org.junit.Test;
 
 import org.apache.hadoop.fs.azurebfs.AbfsConfiguration;
@@ -29,12 +30,7 @@ import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem;
 
-import static org.mockito.ArgumentMatcher.*;//.ArgumentMatchers.any;
-//import static org.mockito.ArgumentMatchers.anyInt;
-//import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Matchers.*;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
 
 import static org.apache.hadoop.fs.azurebfs.AbfsStatistic.CONNECTIONS_MADE;
 import static org.apache.hadoop.fs.azurebfs.constants.FileSystemConfigurations.ONE_KB;
@@ -242,20 +238,31 @@ public class ITestAbfsInputStreamSmallFileReads extends ITestAbfsInputStream {
   private void partialReadWithNoData(final FileSystem fs,
       final Path testFilePath,
       final int seekPos, final int length, final byte[] fileContent)
-      throws IOException {
+      throws Exception {
 
     FSDataInputStream iStream = fs.open(testFilePath);
     try {
-      AbfsInputStream abfsInputStream = (AbfsInputStream) iStream
-          .getWrappedStream();
-      abfsInputStream = spy(abfsInputStream);
-      when(abfsInputStream.readRemote(anyLong(), any(), anyInt(), anyInt())).thenReturn(10).thenReturn(10).thenCallRealMethod();
+      AbfsInputStreamContext inputStreamContext = getAbfsInputStreamContext(
+          super.getAbfsStore((AzureBlobFileSystem) fs));
+      AbfsClient mockClient = TestAbfsClient.getMockAbfsClient(
+          super.getAbfsStore((AzureBlobFileSystem) fs).getClient(),
+          super.getAbfsStore((AzureBlobFileSystem) fs).getAbfsConfiguration());
 
-//      doReturn(10)
-//          .doReturn(10)
-//          .doCallRealMethod()
-//          .when(abfsInputStream)
-//          .readRemote(anyLong(), any(), anyInt(), anyInt());
+      // Create AbfsInputStream with the client instance
+      AbfsInputStream abfsInputStream = new AbfsInputStream(
+          mockClient,
+          null,
+          testFilePath.toUri().getPath(),
+          fileContent.length,
+          inputStreamContext,
+          ((AbfsInputStream)iStream.getWrappedStream()).geteTag());
+
+      AbfsRestOperation restOp10Bytes = getMockRestOp(10L);
+      when(mockClient.read(anyString(), anyLong(), any(byte[].class),
+          anyInt(), anyInt(), anyString()))
+          .thenReturn(restOp10Bytes)
+          .thenReturn(restOp10Bytes)
+          .thenCallRealMethod();
 
       iStream = new FSDataInputStream(abfsInputStream);
       seek(iStream, seekPos);
@@ -289,25 +296,37 @@ public class ITestAbfsInputStreamSmallFileReads extends ITestAbfsInputStream {
   private void partialReadWithSomeData(final FileSystem fs,
       final Path testFilePath,
       final int seekPos, final int length, final byte[] fileContent)
-      throws IOException, NoSuchFieldException, IllegalAccessException {
+      throws Exception {
     FSDataInputStream iStream = fs.open(testFilePath);
     try {
-      AbfsInputStream abfsInputStream = (AbfsInputStream) iStream
-          .getWrappedStream();
-      abfsInputStream = spy(abfsInputStream);
+      AbfsInputStreamContext inputStreamContext = getAbfsInputStreamContext(
+          super.getAbfsStore((AzureBlobFileSystem) fs));
+      AbfsClient mockClient = TestAbfsClient.getMockAbfsClient(
+          super.getAbfsStore((AzureBlobFileSystem) fs).getClient(),
+          super.getAbfsStore((AzureBlobFileSystem) fs).getAbfsConfiguration());
+
+      // Create AbfsInputStream with the client instance
+      AbfsInputStream abfsInputStream = new AbfsInputStream(
+          mockClient,
+          null,
+          testFilePath.toUri().getPath(),
+          fileContent.length,
+          inputStreamContext,
+          ((AbfsInputStream)iStream.getWrappedStream()).geteTag());
       //  first readRemote, will return first 10 bytes
       //  second readRemote, seekPos - someDataLength(10) will reach the
       //  seekPos as 10 bytes are already read in the first call. Plus
       //  someDataLength(10)
       int someDataLength = 10;
       int secondReturnSize = seekPos - 10 + someDataLength;
-      when(abfsInputStream.readRemote(anyLong(), any(), anyInt(), anyInt())).thenReturn(10).thenReturn(secondReturnSize).thenCallRealMethod();
 
-//      doReturn(10)
-//          .doReturn(secondReturnSize)
-//          .doCallRealMethod()
-//          .when(abfsInputStream)
-//          .readRemote(anyLong(), any(), anyInt(), anyInt());
+      AbfsRestOperation restOp10Bytes = getMockRestOp(10L);
+      AbfsRestOperation restOpSecondRequest = getMockRestOp(secondReturnSize);
+      when(mockClient.read(anyString(), anyLong(), any(byte[].class),
+          anyInt(), anyInt(), anyString()))
+          .thenReturn(restOp10Bytes)
+          .thenReturn(restOpSecondRequest)
+          .thenCallRealMethod();
 
       iStream = new FSDataInputStream(abfsInputStream);
       seek(iStream, seekPos);

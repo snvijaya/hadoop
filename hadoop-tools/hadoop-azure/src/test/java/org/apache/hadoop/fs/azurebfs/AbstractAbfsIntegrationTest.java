@@ -31,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import  org.apache.hadoop.fs.permission.FsPermission;
+import org.apache.hadoop.fs.azurebfs.services.AbfsInputStreamContext;
 import org.apache.hadoop.fs.azurebfs.services.AbfsOutputStream;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AzureBlobFileSystemException;
 
@@ -341,6 +342,10 @@ public abstract class AbstractAbfsIntegrationTest extends
 
   public AzureBlobFileSystemStore getAbfsStore(final AzureBlobFileSystem fs) {
     return fs.getAbfsStore();
+  }
+
+  protected AbfsInputStreamContext getAbfsInputStreamContext(AzureBlobFileSystemStore abfsStore) {
+    return abfsStore.populateAbfsInputStreamContext();
   }
 
   public Path makeQualified(Path path) throws java.io.IOException {

@@ -84,7 +84,7 @@ public class TestAbfsInputStream extends
 
   private AbfsClient getMockAbfsClient() {
     // Mock failure for client.read()
-    AbfsClient client = mock(AbfsClient.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    AbfsClient client = mock(AbfsClient.class);
     AbfsPerfTracker tracker = new AbfsPerfTracker(
         "test",
         this.getAccountName(),

@@ -53,7 +53,6 @@ public class ITestClientUrlScheme extends AbstractAbfsIntegrationTest{
   public static Iterable<Object[]> params() {
     return Arrays.asList(
             new Object[][]{
-                    {false, false},
                     {false, true},
                     {true, true},
                     {true, false}

@@ -22,7 +22,6 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.Random;
-
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -30,14 +29,15 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.azurebfs.AbfsConfiguration;
 import org.apache.hadoop.fs.azurebfs.AbstractAbfsIntegrationTest;
 import org.apache.hadoop.fs.azurebfs.AzureBlobFileSystem;
+import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AbfsRestOperationException;
 import org.apache.hadoop.fs.azurebfs.AzureBlobFileSystemStore;
-import org.junit.Test;
-
 import static org.apache.hadoop.fs.azurebfs.constants.FileSystemConfigurations.ONE_MB;
-import static org.mockito.Matchers.*;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.spy;
+import org.junit.Test;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ITestAbfsInputStream extends AbstractAbfsIntegrationTest {
@@ -105,22 +105,40 @@ public class ITestAbfsInputStream extends AbstractAbfsIntegrationTest {
     }
   }
 
+  protected AbfsRestOperation getMockRestOp(long bytesReceived) {
+    AbfsRestOperation op = mock(AbfsRestOperation.class);
+    AbfsHttpOperation httpOp = mock(AbfsHttpOperation.class);
+    when(httpOp.getBytesReceived()).thenReturn(bytesReceived);
+    when(op.getResult()).thenReturn(httpOp);
+    return op;
+  }
+
   private void testExceptionInOptimization(final FileSystem fs,
       final Path testFilePath,
       final int seekPos, final int length, final byte[] fileContent)
-      throws IOException {
+      throws Exception {
 
     FSDataInputStream iStream = fs.open(testFilePath);
     try {
-      AbfsInputStream abfsInputStream = (AbfsInputStream) iStream
-          .getWrappedStream();
-      abfsInputStream = spy(abfsInputStream);
-      when(abfsInputStream.readRemote(anyLong(), any(), anyInt(), anyInt())).thenThrow(new IOException()).thenCallRealMethod();
+      AbfsInputStreamContext inputStreamContext = getAbfsInputStreamContext(
+          super.getAbfsStore((AzureBlobFileSystem) fs));
+      AbfsClient mockClient = TestAbfsClient.getMockAbfsClient(
+          super.getAbfsStore((AzureBlobFileSystem) fs).getClient(),
+          super.getAbfsStore((AzureBlobFileSystem) fs).getAbfsConfiguration());
 
-//      org.mockito.Mockito.doThrow(new IOException())
-//          .doCallRealMethod()
-//          .when(abfsInputStream)
-//          .readRemote(anyLong(), any(), anyInt(), anyInt());
+      // Create AbfsInputStream with the client instance
+      AbfsInputStream abfsInputStream = new AbfsInputStream(
+          mockClient,
+          null,
+          testFilePath.toUri().getPath(),
+          fileContent.length,
+          inputStreamContext,
+          ((AbfsInputStream)iStream.getWrappedStream()).geteTag());
+
+      when(mockClient.read(anyString(), anyLong(), any(byte[].class),
+          anyInt(), anyInt(), anyString()))
+          .thenThrow(new AbfsRestOperationException(-1, null, "test exception", null))
+          .thenCallRealMethod();
 
       iStream = new FSDataInputStream(abfsInputStream);
       verifyBeforeSeek(abfsInputStream);

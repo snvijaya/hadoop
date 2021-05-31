@@ -32,6 +32,11 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.azurebfs.services.AbfsOutputStream;
 import org.apache.hadoop.fs.azurebfs.services.AbfsRestOperation;
 
+import static org.apache.hadoop.fs.azurebfs.AbfsStatistic.BYTES_RECEIVED;
+import static org.apache.hadoop.fs.azurebfs.AbfsStatistic.CONNECTIONS_MADE;
+import static org.apache.hadoop.fs.azurebfs.AbfsStatistic.GET_RESPONSES;
+import static org.apache.hadoop.fs.azurebfs.AbfsStatistic.SEND_REQUESTS;
+
 public class ITestAbfsNetworkStatistics extends AbstractAbfsIntegrationTest {
 
   private static final Logger LOG =
@@ -54,87 +59,92 @@ public class ITestAbfsNetworkStatistics extends AbstractAbfsIntegrationTest {
     Map<String, Long> metricMap;
     Path sendRequestPath = path(getMethodName());
     String testNetworkStatsString = "http_send";
-    long connectionsMade, requestsSent, bytesSent;
 
-    /*
-     * Creating AbfsOutputStream will result in 1 connection made and 1 send
-     * request.
-     */
+    metricMap = fs.getInstrumentationMap();
+    long expectedConnectionsMade = metricMap.get(CONNECTIONS_MADE.getStatName());
+    long expectedRequestsSent = metricMap.get(SEND_REQUESTS.getStatName());
+    long expectedBytesSent = 0;
+
+    // --------------------------------------------------------------------
+    // Operation: Creating AbfsOutputStream
     try (AbfsOutputStream out = createAbfsOutputStreamWithFlushEnabled(fs,
         sendRequestPath)) {
+      // Network stats calculation: For Creating AbfsOutputStream:
+      // 1 create request = 1 connection made and 1 send request
+      expectedConnectionsMade++;
+      expectedRequestsSent++;
+      // --------------------------------------------------------------------
+
+      // Operation: Write small data
+      // Network stats calculation: No additions.
+      // Data written is less than the buffer size and hence will not
+      // trigger any append request to store
       out.write(testNetworkStatsString.getBytes());
+      // --------------------------------------------------------------------
 
-      /*
-       * Flushes all outstanding data (i.e. the current unfinished packet)
-       * from the client into the service on all DataNode replicas.
-       */
+      // Operation: HFlush
+      // Flushes all outstanding data (i.e. the current unfinished packet)
+      // from the client into the service on all DataNode replicas.
       out.hflush();
-
-      metricMap = fs.getInstrumentationMap();
-
       /*
-       * Testing the network stats with 1 write operation.
-       *
-       * connections_made : 3(getFileSystem()) + 1(AbfsOutputStream) + 2(flush).
-       *
-       * send_requests : 1(getFileSystem()) + 1(AbfsOutputStream) + 2(flush).
-       *
-       * bytes_sent : bytes wrote in AbfsOutputStream.
+       * Network stats calculation:
+       * As there is pending data to be written to store, this will result in:
+       *    1 append + 1 flush = 2 connections and 2 send requests
        */
-      connectionsMade = assertAbfsStatistics(AbfsStatistic.CONNECTIONS_MADE,
-          6, metricMap);
-      requestsSent = assertAbfsStatistics(AbfsStatistic.SEND_REQUESTS, 4,
-          metricMap);
-      bytesSent = assertAbfsStatistics(AbfsStatistic.BYTES_SENT,
-          testNetworkStatsString.getBytes().length, metricMap);
+      expectedConnectionsMade += 2;
+      expectedRequestsSent += 2;
+      expectedBytesSent += testNetworkStatsString.getBytes().length;
+      // --------------------------------------------------------------------
 
+      // Assertions
+      metricMap = fs.getInstrumentationMap();
+      assertAbfsStatistics(CONNECTIONS_MADE,
+          expectedConnectionsMade, metricMap);
+      assertAbfsStatistics(SEND_REQUESTS, expectedRequestsSent,
+          metricMap);
+      assertAbfsStatistics(AbfsStatistic.BYTES_SENT,
+          expectedBytesSent, metricMap);
     }
 
-    // To close the AbfsOutputStream 1 connection is made and 1 request is sent.
-    connectionsMade++;
-    requestsSent++;
+    // --------------------------------------------------------------------
+    // Operation: AbfsOutputStream close.
+    // Network Stats calculation: 1 flush (with close) is send.
+    // 1 flush request = 1 connection and 1 send request
+    expectedConnectionsMade++;
+    expectedRequestsSent++;
+    // --------------------------------------------------------------------
 
+    // Operation: Re-create the file / create overwrite scenario
     try (AbfsOutputStream out = createAbfsOutputStreamWithFlushEnabled(fs,
         sendRequestPath)) {
+      /*
+       * Network Stats calculation: create overwrite
+       * create overwrite results in 1 server call
+       *    create with overwrite=true = 1 connection and 1 send request
+       *
+       */
+        expectedConnectionsMade += 1;
+        expectedRequestsSent += 1;
+      // --------------------------------------------------------------------
 
+      // Operation: Multiple small appends + hflush
       for (int i = 0; i < LARGE_OPERATIONS; i++) {
         out.write(testNetworkStatsString.getBytes());
-
-        /*
-         * 1 flush call would create 2 connections and 2 send requests.
-         * when hflush() is called it will essentially trigger append() and
-         * flush() inside AbfsRestOperation. Both of which calls
-         * executeHttpOperation() method which creates a connection and sends
-         * requests.
-         */
+        // Network stats calculation: no-op. Small write
         out.hflush();
+        // Network stats calculation: Hflush
+        expectedConnectionsMade += 2;
+        expectedRequestsSent += 2;
+        expectedBytesSent += testNetworkStatsString.getBytes().length;
       }
+      // --------------------------------------------------------------------
 
+      // Assertions
       metricMap = fs.getInstrumentationMap();
-
-      /*
-       * Testing the network stats with Large amount of bytes sent.
-       *
-       * connections made : connections_made(Last assertion) + 1
-       * (AbfsOutputStream) + LARGE_OPERATIONS * 2(flush).
-       *
-       * send requests : requests_sent(Last assertion) + 1(AbfsOutputStream) +
-       * LARGE_OPERATIONS * 2(flush).
-       *
-       * bytes sent : bytes_sent(Last assertion) + LARGE_OPERATIONS * (bytes
-       * wrote each time).
-       *
-       */
-      assertAbfsStatistics(AbfsStatistic.CONNECTIONS_MADE,
-          connectionsMade + 1 + LARGE_OPERATIONS * 2, metricMap);
-      assertAbfsStatistics(AbfsStatistic.SEND_REQUESTS,
-          requestsSent + 1 + LARGE_OPERATIONS * 2, metricMap);
-      assertAbfsStatistics(AbfsStatistic.BYTES_SENT,
-          bytesSent + LARGE_OPERATIONS * (testNetworkStatsString.getBytes().length),
-          metricMap);
-
+      assertAbfsStatistics(CONNECTIONS_MADE, expectedConnectionsMade, metricMap);
+      assertAbfsStatistics(SEND_REQUESTS, expectedRequestsSent, metricMap);
+      assertAbfsStatistics(AbfsStatistic.BYTES_SENT, expectedBytesSent, metricMap);
     }
-
   }
 
   /**
@@ -149,102 +159,100 @@ public class ITestAbfsNetworkStatistics extends AbstractAbfsIntegrationTest {
     Path getResponsePath = path(getMethodName());
     Map<String, Long> metricMap;
     String testResponseString = "some response";
-    long getResponses, bytesReceived;
 
     FSDataOutputStream out = null;
     FSDataInputStream in = null;
-    try {
+    long expectedConnectionsMade;
+    long expectedGetResponses;
+    long expectedBytesReceived;
 
-      /*
-       * Creating a File and writing some bytes in it.
-       *
-       * get_response : 3(getFileSystem) + 1(OutputStream creation) + 2
-       * (Writing data in Data store).
-       *
-       */
+    try {
+      // Creating a File and writing some bytes in it.
       out = fs.create(getResponsePath);
       out.write(testResponseString.getBytes());
       out.hflush();
 
-      // open would require 1 get response.
-      in = fs.open(getResponsePath);
-      // read would require 1 get response and also get the bytes received.
-      int result = in.read();
-
-      // Confirming read isn't -1.
-      LOG.info("Result of read operation : {}", result);
-
+      // Set metric baseline
       metricMap = fs.getInstrumentationMap();
+      long bytesWrittenToFile = testResponseString.getBytes().length;
+      expectedConnectionsMade = metricMap.get(CONNECTIONS_MADE.getStatName());
+      expectedGetResponses = metricMap.get(CONNECTIONS_MADE.getStatName());
+      expectedBytesReceived = metricMap.get(BYTES_RECEIVED.getStatName());
 
-      /*
-       * Testing values of statistics after writing and reading a buffer.
-       *
-       * get_responses - 6(above operations) + 1(open()) + 1 (read()).
-       *
-       * bytes_received - This should be equal to bytes sent earlier.
-       */
-      getResponses = assertAbfsStatistics(AbfsStatistic.GET_RESPONSES, 8,
-          metricMap);
-      // Testing that bytes received is equal to bytes sent.
-      long bytesSend = metricMap.get(AbfsStatistic.BYTES_SENT.getStatName());
-      bytesReceived = assertAbfsStatistics(AbfsStatistic.BYTES_RECEIVED,
-          bytesSend,
-          metricMap);
+      // --------------------------------------------------------------------
+      // Operation: Create AbfsInputStream
+      in = fs.open(getResponsePath);
+      // Network stats calculation: For Creating AbfsInputStream:
+      // 1 GetFileStatus request to fetch file size = 1 connection and 1 get response
+      expectedConnectionsMade++;
+      expectedGetResponses++;
+      // --------------------------------------------------------------------
 
+      // Operation: Read
+      int result = in.read();
+      // Network stats calculation: For read:
+      // 1 read request = 1 connection and 1 get response
+      expectedConnectionsMade++;
+      expectedGetResponses++;
+      expectedBytesReceived += bytesWrittenToFile;
+      // --------------------------------------------------------------------
+
+      // Assertions
+      metricMap = fs.getInstrumentationMap();
+      assertAbfsStatistics(CONNECTIONS_MADE, expectedConnectionsMade, metricMap);
+      assertAbfsStatistics(GET_RESPONSES, expectedGetResponses, metricMap);
+      assertAbfsStatistics(AbfsStatistic.BYTES_RECEIVED, expectedBytesReceived, metricMap);
     } finally {
       IOUtils.cleanupWithLogger(LOG, out, in);
     }
 
-    // To close the streams 1 response is received.
-    getResponses++;
+    // --------------------------------------------------------------------
+    // Operation: AbfsOutputStream close.
+    // Network Stats calculation: no op.
+    // --------------------------------------------------------------------
 
     try {
 
-      /*
-       * Creating a file and writing buffer into it. Also recording the
-       * buffer for future read() call.
-       * This creating outputStream and writing requires 2 *
-       * (LARGE_OPERATIONS) get requests.
-       */
+      // Recreate file with different file size
+      // [Create and append related network stats checks are done in
+      // test method testAbfsHttpSendStatistics]
       StringBuilder largeBuffer = new StringBuilder();
       out = fs.create(getResponsePath);
+
       for (int i = 0; i < LARGE_OPERATIONS; i++) {
         out.write(testResponseString.getBytes());
         out.hflush();
         largeBuffer.append(testResponseString);
       }
 
-      // Open requires 1 get_response.
-      in = fs.open(getResponsePath);
-
-      /*
-       * Reading the file which was written above. This read() call would
-       * read bytes equal to the bytes that was written above.
-       * Get response would be 1 only.
-       */
-      in.read(0, largeBuffer.toString().getBytes(), 0,
-          largeBuffer.toString().getBytes().length);
-
+      // sync back to metric baseline
       metricMap = fs.getInstrumentationMap();
+      expectedConnectionsMade = metricMap.get(CONNECTIONS_MADE.getStatName());
+      expectedGetResponses = metricMap.get(GET_RESPONSES.getStatName());
+      // --------------------------------------------------------------------
+      // Operation: Create AbfsInputStream
+      in = fs.open(getResponsePath);
+      // Network stats calculation: For Creating AbfsInputStream:
+      // 1 GetFileStatus for file size = 1 connection and 1 get response
+      expectedConnectionsMade++;
+      expectedGetResponses++;
+      // --------------------------------------------------------------------
 
-      /*
-       * Testing the statistics values after writing and reading a large buffer.
-       *
-       * get_response : get_responses(Last assertion) + 1
-       * (OutputStream) + 2 * LARGE_OPERATIONS(Writing and flushing
-       * LARGE_OPERATIONS times) + 1(open()) + 1(read()).
-       *
-       * bytes_received : bytes_received(Last assertion) + LARGE_OPERATIONS *
-       * bytes wrote each time (bytes_received is equal to bytes wrote in the
-       * File).
-       *
-       */
-      assertAbfsStatistics(AbfsStatistic.BYTES_RECEIVED,
-          bytesReceived + LARGE_OPERATIONS * (testResponseString.getBytes().length),
-          metricMap);
-      assertAbfsStatistics(AbfsStatistic.GET_RESPONSES,
-          getResponses + 3 + 2 * LARGE_OPERATIONS, metricMap);
+      // Operation: Read
+      in.read(0, largeBuffer.toString().getBytes(), 0, largeBuffer.toString().getBytes().length);
+      // Network stats calculation: Total data written is still lesser than
+      // a buffer size. Hence will trigger only one read to store. So result is:
+      // 1 read request = 1 connection and 1 get response
+      expectedConnectionsMade++;
+      expectedGetResponses++;
+      expectedBytesReceived += (LARGE_OPERATIONS * testResponseString.getBytes().length);
+      // --------------------------------------------------------------------
 
+      // Assertions
+      metricMap = fs.getInstrumentationMap();
+      assertAbfsStatistics(CONNECTIONS_MADE, expectedConnectionsMade, metricMap);
+      assertAbfsStatistics(GET_RESPONSES, expectedGetResponses, metricMap);
+      assertAbfsStatistics(AbfsStatistic.BYTES_RECEIVED, expectedBytesReceived, metricMap);
     } finally {
       IOUtils.cleanupWithLogger(LOG, out, in);
     }

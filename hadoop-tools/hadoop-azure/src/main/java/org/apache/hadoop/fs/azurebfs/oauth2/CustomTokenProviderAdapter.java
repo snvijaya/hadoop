@@ -21,6 +21,7 @@ package org.apache.hadoop.fs.azurebfs.oauth2;
 
 import java.io.IOException;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -96,5 +97,10 @@ public final class CustomTokenProviderAdapter extends AccessTokenProvider {
     azureADToken.setExpiry(adaptee.getExpiryTime());
 
     return azureADToken;
+  }
+
+  @VisibleForTesting
+  public CustomTokenProviderAdaptee getCustomTokenProviderAdaptee() {
+    return adaptee;
   }
 }

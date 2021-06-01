@@ -654,4 +654,9 @@ public class AbfsClient implements Closeable {
   protected AbfsCounters getAbfsCounters() {
     return abfsCounters;
   }
+
+  @VisibleForTesting
+  protected AccessTokenProvider getTokenProvider() {
+    return tokenProvider;
+  }
 }

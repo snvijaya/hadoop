@@ -31,6 +31,7 @@ import static org.mockito.Mockito.when;
 
 import org.apache.hadoop.fs.azurebfs.AbfsConfiguration;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AzureBlobFileSystemException;
+import org.apache.hadoop.fs.azurebfs.oauth2.AccessTokenProvider;
 import org.apache.hadoop.fs.azurebfs.utils.SSLSocketFactoryEx;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.azurebfs.constants.ConfigurationKeys;
@@ -204,5 +205,9 @@ public final class TestAbfsClient {
         field.getModifiers() & ~java.lang.reflect.Modifier.FINAL);
     field.set(client, fieldObject);
     return client;
+  }
+
+  public static AccessTokenProvider getTokenProvider(AbfsClient client) {
+    return client.getTokenProvider();
   }
 }

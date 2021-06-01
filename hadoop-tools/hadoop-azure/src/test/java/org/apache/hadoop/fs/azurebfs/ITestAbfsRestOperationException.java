@@ -25,19 +25,22 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AbfsRestOperationException;
-import org.apache.hadoop.fs.azurebfs.contracts.services.AzureServiceErrorCode;
-import org.apache.hadoop.fs.azurebfs.oauth2.RetryTestTokenProvider;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 
+import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AbfsRestOperationException;
+import org.apache.hadoop.fs.azurebfs.contracts.services.AzureServiceErrorCode;
+import org.apache.hadoop.fs.azurebfs.oauth2.CustomTokenProviderAdapter;
+import org.apache.hadoop.fs.azurebfs.oauth2.RetryTestTokenProvider;
+import org.apache.hadoop.fs.azurebfs.services.TestAbfsClient;
+
+import static org.apache.hadoop.test.LambdaTestUtils.intercept;
 import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.DOT;
 import static org.apache.hadoop.fs.azurebfs.constants.ConfigurationKeys.AZURE_CREATE_REMOTE_FILESYSTEM_DURING_INITIALIZATION;
 import static org.apache.hadoop.fs.azurebfs.constants.ConfigurationKeys.FS_AZURE_ACCOUNT_AUTH_TYPE_PROPERTY_NAME;
 import static org.apache.hadoop.fs.azurebfs.constants.ConfigurationKeys.FS_AZURE_ACCOUNT_TOKEN_PROVIDER_TYPE_PROPERTY_NAME;
 import static org.apache.hadoop.fs.azurebfs.constants.TestConfigurationKeys.FS_AZURE_ABFS_ACCOUNT_NAME;
-import static org.apache.hadoop.test.LambdaTestUtils.intercept;
 
 /**
  * Verify the AbfsRestOperationException error message format.
@@ -111,18 +114,22 @@ public class ITestAbfsRestOperationException extends AbstractAbfsIntegrationTest
     final AzureBlobFileSystem fs1 =
         (AzureBlobFileSystem) FileSystem.newInstance(fs.getUri(),
         config);
-    RetryTestTokenProvider.ResetStatusToFirstTokenFetch();
 
     intercept(Exception.class,
         ()-> {
-          fs1.getFileStatus(new Path("/"));
+          fs1.mkdirs(new Path("/newPath"));
         });
+
+    RetryTestTokenProvider tokenProvider
+        = ((RetryTestTokenProvider)
+        ((CustomTokenProviderAdapter) TestAbfsClient.getTokenProvider(fs1.getAbfsClient()))
+            .getCustomTokenProviderAdaptee());
 
     // Number of retries done should be as configured
     Assert.assertTrue(
-        "Number of token fetch retries (" + RetryTestTokenProvider.reTryCount
+        "Number of token fetch retries (" + tokenProvider.reTryCount
             + ") done, does not match with fs.azure.custom.token.fetch.retry.count configured (" + numOfRetries
-            + ")", RetryTestTokenProvider.reTryCount == numOfRetries);
+            + ")", tokenProvider.reTryCount == numOfRetries);
   }
 
   @Test

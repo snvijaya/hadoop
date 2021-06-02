@@ -32,11 +32,11 @@ ENDTIME=$(date +%s)
 
 triggerRun()
 {
+  echo ' '
   combination=$1
-  authMode=$2
-  accountName=$3
-  runTest=$4
-  threadcount=$5
+  accountName=$2
+  runTest=$3
+  threadcount=$4
   accountConfigFile=$accountSettingsFolderName/$accountName$accountConfigFileSuffix
   rm -rf $combtestfile
   cat > $combtestfile << ENDOFFILE
@@ -44,13 +44,25 @@ triggerRun()
 
 </configuration>
 ENDOFFILE
-  changeconf "fs.azure.account.auth.type" "$authMode"
+  propertiessize=${#properties[@]}
+  valuessize=${#values[@]}
+  if [ "$propertiessize" -ne "$valuessize" ]; then
+    echo "Exiting. Number of properties and values differ for $combination"
+    exit -1
+  fi
+  for ((i = 0; i < propertiessize; i++)); do
+    key=${properties[$i]}
+    val=${values[$i]}
+    echo Combination specific property setting: [ $key , $val ]
+    changeconf "$key" "$val"
+  done
   formatxml "$combtestfile"
   xmlstarlet ed -P -L -s /configuration -t elem -n include -v "" $combtestfile
   xmlstarlet ed -P -L -i /configuration/include -t attr -n href -v "$accountConfigFile" $combtestfile
   xmlstarlet ed -P -L -i /configuration/include -t attr -n xmlns -v "http://www.w3.org/2001/XInclude" $combtestfile
   formatxml $combtestfile
-  echo Activated - $combtestfile - for $accountName to run combination $combination
+  echo ' '
+  echo Activated [$combtestfile] - for \"$accountName\" to run combination \"$combination\"
 
   if [ $runTest == true ]
   then
@@ -59,8 +71,7 @@ ENDOFFILE
     touch $testlogfilename
     echo Running test for combination $combination on account $accountName [ThreadCount=$threadcount]
     echo Result can be seen in $testlogfilename
-#    mvn -T 1C -Dparallel-tests=abfs -Dscale -DtestsThreadCount=$threadcount verify >> "$testlogfilename" || true
-    mvn -T 1C -Dparallel-tests=abfs -DtestsThreadCount=$threadcount verify >> "$testlogfilename" || true
+    mvn -T 1C -Dparallel-tests=abfs -Dscale -DtestsThreadCount=$threadcount verify >> "$testlogfilename" || true
     ENDTIME=$(date +%s)
     summary
   fi
@@ -82,7 +93,7 @@ summary() {
   printf "\nTime taken: %s mins %s secs.\n" "$mins" "$secs"
   echo "Find test logs for the combination ($combination) in: $testlogfilename"
   echo "Find consolidated test results in: $aggregatedTestResult"
-  echo "----------"
+  echo "------------------------"
 }
 
 checkdependencies() {
@@ -113,21 +124,20 @@ changeconf() {
 
 init() {
   checkdependencies
-#  if ! mvn clean install -DskipTests
-#  then
-#    echo ""
-#    echo "Exiting. Build failed."
-#    exit -1
-#  fi
+  if ! mvn clean install -DskipTests
+  then
+    echo ""
+    echo "Exiting. Build failed."
+    exit -1
+  fi
   starttime=$(date +"%Y-%m-%d_%H-%M-%S")
-#  mkdir -p "$logdir"
   testOutputLogFolder+=$starttime
   mkdir -p $testOutputLogFolder
   aggregatedTestResult="$testOutputLogFolder/Test-Results.txt"
  }
 
  printAggregate() {
-   echo  :: AGGREGATED TEST RESULT ::
+   echo  :::: AGGREGATED TEST RESULT ::::
    cat $aggregatedTestResult
   fullRunEndTime=$(date +%s)
   fullRunTimeInSecs=$((fullRunEndTime - fullRunStartTime))

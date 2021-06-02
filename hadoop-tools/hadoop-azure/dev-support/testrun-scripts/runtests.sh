@@ -32,19 +32,25 @@ threadCount=8
 runHNSOAuthTest()
 {
   accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.hnsTestAccountName"]/value' $azureTestXmlPath)
-  triggerRun HNS-OAuth OAuth $accountName $runTest $threadCount
+  properties=("fs.azure.account.auth.type")
+  values=("OAuth")
+  triggerRun HNS-OAuth $accountName $runTest $threadCount
 }
 
 runHNSSharedKeyTest()
 {
   accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.hnsTestAccountName"]/value' $azureTestXmlPath)
-  triggerRun HNS-SharedKey SharedKey $accountName  $runTest $threadCount
+  properties=("fs.azure.account.auth.type")
+  values=("SharedKey")
+  triggerRun HNS-SharedKey $accountName  $runTest $threadCount
 }
 
 runNonHNSSharedKeyTest()
 {
   accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.nonHnsTestAccountName"]/value' $azureTestXmlPath)
-  triggerRun NonHNS-SharedKey SharedKey $accountName  $runTest $threadCount
+  properties=("fs.azure.account.auth.type")
+  values=("SharedKey")
+  triggerRun NonHNS-SharedKey $accountName $runTest $threadCount
 }
 
 runTest=true
@@ -79,6 +85,7 @@ do
    esac
 done
 
+echo ' '
 echo 'Pick combination from the following:'
 select combo in HNS-OAuth HNS-SharedKey nonHNS-SharedKey All Quit
 do

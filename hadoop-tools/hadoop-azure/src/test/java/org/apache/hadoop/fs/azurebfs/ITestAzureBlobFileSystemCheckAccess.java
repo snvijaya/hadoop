@@ -161,41 +161,6 @@ public class ITestAzureBlobFileSystemCheckAccess
   }
 
   @Test
-  public void testCheckAccessForAccountWithoutNS() throws Exception {
-    Assume.assumeFalse(FS_AZURE_TEST_NAMESPACE_ENABLED_ACCOUNT + " is true",
-        getConfiguration()
-            .getBoolean(FS_AZURE_TEST_NAMESPACE_ENABLED_ACCOUNT, true));
-    Assume.assumeTrue(FS_AZURE_ENABLE_CHECK_ACCESS + " is false",
-        isCheckAccessEnabled);
-    checkIfConfigIsSet(FS_AZURE_BLOB_FS_CHECKACCESS_TEST_CLIENT_ID);
-    checkIfConfigIsSet(FS_AZURE_BLOB_FS_CHECKACCESS_TEST_CLIENT_SECRET);
-    checkIfConfigIsSet(FS_AZURE_BLOB_FS_CHECKACCESS_TEST_USER_GUID);
-
-    setTestUserFs();
-
-    //  When the driver does not know if the account is HNS enabled or not it
-    //  makes a server call and fails
-    intercept(AccessControlException.class,
-        "\"This request is not authorized to perform this operation using "
-            + "this permission.\", 403",
-        () -> testUserFs.access(new Path("/"), FsAction.READ));
-
-    //  When the driver has already determined if the account is HNS enabled
-    //  or not, and as the account is non HNS the AzureBlobFileSystem#access
-    //  acts as noop
-    AzureBlobFileSystemStore mockAbfsStore =
-        Mockito.mock(AzureBlobFileSystemStore.class);
-    Mockito.when(mockAbfsStore.getIsNamespaceEnabled()).thenReturn(true);
-    Field abfsStoreField = AzureBlobFileSystem.class.getDeclaredField(
-        "abfsStore");
-    abfsStoreField.setAccessible(true);
-    abfsStoreField.set(testUserFs, mockAbfsStore);
-    testUserFs.access(new Path("/"), FsAction.READ);
-
-    superUserFs.access(new Path("/"), FsAction.READ);
-  }
-
-  @Test
   public void testFsActionNONE() throws Exception {
     checkPrerequisites();
     Path testFilePath = setupTestDirectoryAndUserAccess("/test2.txt",

@@ -16,6 +16,16 @@
 <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
 <configuration xmlns:xi="http://www.w3.org/2001/XInclude">
 
+  <property>
+    <name>fs.azure.hnsTestAccountName</name>
+    <value></value>
+  </property>
+
+  <property>
+    <name>fs.azure.nonHnsTestAccountName</name>
+    <value></value>
+  </property>
+
   <!--====================  WASB CONFIGURATION ====================-->
   <!-- For tests against azure-emulator -->
   <property>
@@ -25,6 +35,11 @@
 
   <property>
     <name>fs.azure.secure.mode</name>
+    <value>false</value>
+  </property>
+
+  <property>
+    <name>fs.azure.abfs.latency.track</name>
     <value>false</value>
   </property>
 
@@ -48,6 +63,10 @@
   <!--=============================================================-->
 
   <include xmlns="http://www.w3.org/2001/XInclude" href="azure-auth-keys.xml">
+    <fallback />
+  </include>
+
+  <include xmlns="http://www.w3.org/2001/XInclude" href="abfs-combination-test-configs.xml">
     <fallback />
   </include>
 

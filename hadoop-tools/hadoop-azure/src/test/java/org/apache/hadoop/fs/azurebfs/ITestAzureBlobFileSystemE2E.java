@@ -201,13 +201,7 @@ public class ITestAzureBlobFileSystemE2E extends AbstractAbfsIntegrationTest {
     assertFalse(fs.exists(testFilePath));
 
     // trigger append call
-    intercept(FileNotFoundException.class,
-        new LambdaTestUtils.VoidCallable() {
-          @Override
-          public void call() throws Exception {
-            stream.close();
-          }
-        });
+    intercept(IOException.class,() -> stream.close());
   }
 
   @Test
@@ -221,13 +215,7 @@ public class ITestAzureBlobFileSystemE2E extends AbstractAbfsIntegrationTest {
     fs.delete(testFilePath, true);
     assertFalse(fs.exists(testFilePath));
 
-    intercept(FileNotFoundException.class,
-        new LambdaTestUtils.VoidCallable() {
-          @Override
-          public void call() throws Exception {
-            stream.close();
-          }
-        });
+    intercept(IOException.class,() -> stream.close());
   }
 
   private void testWriteOneByteToFile(Path testFilePath) throws Exception {

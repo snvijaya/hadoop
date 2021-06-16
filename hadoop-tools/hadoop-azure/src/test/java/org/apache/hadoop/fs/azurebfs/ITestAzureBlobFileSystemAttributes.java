@@ -101,6 +101,7 @@ public class ITestAzureBlobFileSystemAttributes extends AbstractAbfsIntegrationT
         new LambdaTestUtils.VoidCallable() {
           @Override
           public void call() throws Exception {
+            touch(testFile);
             fs.setXAttr(testFile, attributeName, attributeValue1, REPLACE_FLAG);
           }
         });

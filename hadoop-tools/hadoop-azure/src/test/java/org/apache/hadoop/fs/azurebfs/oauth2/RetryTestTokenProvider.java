@@ -31,8 +31,8 @@ import org.slf4j.LoggerFactory;
 public class RetryTestTokenProvider implements CustomTokenProviderAdaptee {
 
   // Need to track first token fetch otherwise will get counted as a retry too.
-  private static boolean isThisFirstTokenFetch = true;
-  public static int reTryCount = 0;
+  private boolean isThisFirstTokenFetch = true;
+  public int reTryCount = 0;
 
   private static final Logger LOG = LoggerFactory
       .getLogger(RetryTestTokenProvider.class);
@@ -40,10 +40,10 @@ public class RetryTestTokenProvider implements CustomTokenProviderAdaptee {
   @Override
   public void initialize(Configuration configuration, String accountName)
       throws IOException {
-
+    ResetStatusToFirstTokenFetch();
   }
 
-  public static void ResetStatusToFirstTokenFetch() {
+  public void ResetStatusToFirstTokenFetch() {
     isThisFirstTokenFetch = true;
     reTryCount = 0;
   }

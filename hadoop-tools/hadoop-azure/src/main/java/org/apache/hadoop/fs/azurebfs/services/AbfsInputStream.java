@@ -24,6 +24,10 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 
 import com.google.common.base.Preconditions;
+import com.google.common.annotations.VisibleForTesting;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.hadoop.fs.FSExceptionMessages;
 import org.apache.hadoop.fs.FSInputStream;
@@ -31,10 +35,22 @@ import org.apache.hadoop.fs.FileSystem.Statistics;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AbfsRestOperationException;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AzureBlobFileSystemException;
 
+import static java.lang.Math.max;
+import static java.lang.Math.min;
+
+import static org.apache.hadoop.fs.azurebfs.constants.FileSystemConfigurations.ONE_KB;
+import static org.apache.hadoop.util.StringUtils.toLowerCase;
+
 /**
  * The AbfsInputStream for AbfsClient.
  */
 public class AbfsInputStream extends FSInputStream {
+  private static final Logger LOG = LoggerFactory.getLogger(AbfsInputStream.class);
+  //  Footer size is set to qualify for both ORC and parquet files
+  public static final int FOOTER_SIZE = 16 * ONE_KB;
+  public static final int MAX_OPTIMIZED_READ_ATTEMPTS = 2;
+
+  private int readAheadBlockSize;
   private final AbfsClient client;
   private final Statistics statistics;
   private final String path;
@@ -44,7 +60,9 @@ public class AbfsInputStream extends FSInputStream {
   private final String eTag;                  // eTag of the path when InputStream are created
   private final boolean tolerateOobAppends; // whether tolerate Oob Appends
   private final boolean readAheadEnabled; // whether enable readAhead;
+  private final boolean alwaysReadBufferSize;
 
+  private boolean firstRead = true;
   private byte[] buffer = null;            // will be initialized on first use
 
   private long fCursor = 0;  // cursor of buffer within file - offset of next byte to read from remote server
@@ -54,24 +72,46 @@ public class AbfsInputStream extends FSInputStream {
   //                                                      of valid bytes in buffer)
   private boolean closed = false;
 
+  //  Optimisations modify the pointer fields.
+  //  For better resilience the following fields are used to save the
+  //  existing state before optimization flows.
+  private int limitBkp;
+  private int bCursorBkp;
+  private long fCursorBkp;
+  private long fCursorAfterLastReadBkp;
+
+  /** Stream statistics. */
+  private final AbfsInputStreamStatistics streamStatistics;
+  private long bytesFromReadAhead; // bytes read from readAhead; for testing
+  private long bytesFromRemoteRead; // bytes read remotely; for testing
+
+  private final AbfsInputStreamContext context;
+
   public AbfsInputStream(
-      final AbfsClient client,
-      final Statistics statistics,
-      final String path,
-      final long contentLength,
-      final int bufferSize,
-      final int readAheadQueueDepth,
-      final boolean tolerateOobAppends,
-      final String eTag) {
+          final AbfsClient client,
+          final Statistics statistics,
+          final String path,
+          final long contentLength,
+          final AbfsInputStreamContext abfsInputStreamContext,
+          final String eTag) {
     this.client = client;
     this.statistics = statistics;
     this.path = path;
     this.contentLength = contentLength;
-    this.bufferSize = bufferSize;
-    this.readAheadQueueDepth = (readAheadQueueDepth >= 0) ? readAheadQueueDepth : Runtime.getRuntime().availableProcessors();
-    this.tolerateOobAppends = tolerateOobAppends;
+    this.bufferSize = abfsInputStreamContext.getReadBufferSize();
+    this.readAheadQueueDepth = abfsInputStreamContext.getReadAheadQueueDepth();
+    this.tolerateOobAppends = abfsInputStreamContext.isTolerateOobAppends();
     this.eTag = eTag;
     this.readAheadEnabled = true;
+    this.alwaysReadBufferSize
+        = abfsInputStreamContext.shouldReadBufferSizeAlways();
+    this.streamStatistics = abfsInputStreamContext.getStreamStatistics();
+    this.context = abfsInputStreamContext;
+    readAheadBlockSize = abfsInputStreamContext.getReadAheadBlockSize();
+
+    // Propagate the config values to ReadBufferManager so that the first instance
+    // to initialize can set the readAheadBlockSize
+    ReadBufferManager.setReadBufferManagerConfigs(readAheadBlockSize);
   }
 
   public String getPath() {
@@ -91,12 +131,30 @@ public class AbfsInputStream extends FSInputStream {
 
   @Override
   public synchronized int read(final byte[] b, final int off, final int len) throws IOException {
+    // check if buffer is null before logging the length
+    if (b != null) {
+      LOG.debug("read requested b.length = {} offset = {} len = {}", b.length,
+          off, len);
+    } else {
+      LOG.debug("read requested b = null offset = {} len = {}", off, len);
+    }
+
     int currentOff = off;
     int currentLen = len;
     int lastReadBytes;
     int totalReadBytes = 0;
+    if (streamStatistics != null) {
+      streamStatistics.readOperationStarted(off, len);
+    }
+    incrementReadOps();
     do {
-      lastReadBytes = readOneBlock(b, currentOff, currentLen);
+      if (shouldReadFully()) {
+        lastReadBytes = readFileCompletely(b, currentOff, currentLen);
+      } else if (shouldReadLastBlock()) {
+        lastReadBytes = readLastBlock(b, currentOff, currentLen);
+      } else {
+        lastReadBytes = readOneBlock(b, currentOff, currentLen);
+      }
       if (lastReadBytes > 0) {
         currentOff += lastReadBytes;
         currentLen -= lastReadBytes;
@@ -109,25 +167,24 @@ public class AbfsInputStream extends FSInputStream {
     return totalReadBytes > 0 ? totalReadBytes : lastReadBytes;
   }
 
+  private boolean shouldReadFully() {
+    return this.firstRead && this.context.readSmallFilesCompletely()
+        && this.contentLength <= this.bufferSize;
+  }
+
+  private boolean shouldReadLastBlock() {
+    long footerStart = max(0, this.contentLength - FOOTER_SIZE);
+    return this.firstRead && this.context.optimizeFooterRead()
+        && this.fCursor >= footerStart;
+  }
+
   private int readOneBlock(final byte[] b, final int off, final int len) throws IOException {
-    if (closed) {
-      throw new IOException(FSExceptionMessages.STREAM_IS_CLOSED);
-    }
-
-    Preconditions.checkNotNull(b);
-
     if (len == 0) {
       return 0;
     }
-
-    if (this.available() == 0) {
+    if (!validate(b, off, len)) {
       return -1;
     }
-
-    if (off < 0 || len < 0 || len > b.length - off) {
-      throw new IndexOutOfBoundsException();
-    }
-
     //If buffer is empty, then fill the buffer.
     if (bCursor == limit) {
       //If EOF, then return -1
@@ -140,14 +197,22 @@ public class AbfsInputStream extends FSInputStream {
       bCursor = 0;
       limit = 0;
       if (buffer == null) {
+        LOG.debug("created new buffer size {}", bufferSize);
         buffer = new byte[bufferSize];
       }
 
-      // Enable readAhead when reading sequentially
-      if (-1 == fCursorAfterLastRead || fCursorAfterLastRead == fCursor || b.length >= bufferSize) {
+      if (alwaysReadBufferSize) {
         bytesRead = readInternal(fCursor, buffer, 0, bufferSize, false);
       } else {
-        bytesRead = readInternal(fCursor, buffer, 0, b.length, true);
+        // Enable readAhead when reading sequentially
+        if (-1 == fCursorAfterLastRead || fCursorAfterLastRead == fCursor || b.length >= bufferSize) {
+          bytesRead = readInternal(fCursor, buffer, 0, bufferSize, false);
+        } else {
+          bytesRead = readInternal(fCursor, buffer, 0, b.length, true);
+        }
+      }
+      if (firstRead) {
+        firstRead = false;
       }
 
       if (bytesRead == -1) {
@@ -158,19 +223,135 @@ public class AbfsInputStream extends FSInputStream {
       fCursor += bytesRead;
       fCursorAfterLastRead = fCursor;
     }
+    return copyToUserBuffer(b, off, len);
+  }
 
+  private int readFileCompletely(final byte[] b, final int off, final int len)
+      throws IOException {
+    if (len == 0) {
+      return 0;
+    }
+    if (!validate(b, off, len)) {
+      return -1;
+    }
+    savePointerState();
+    // data need to be copied to user buffer from index bCursor, bCursor has
+    // to be the current fCusor
+    bCursor = (int) fCursor;
+    return optimisedRead(b, off, len, 0, contentLength);
+  }
+
+  private int readLastBlock(final byte[] b, final int off, final int len)
+      throws IOException {
+    if (len == 0) {
+      return 0;
+    }
+    if (!validate(b, off, len)) {
+      return -1;
+    }
+    savePointerState();
+    // data need to be copied to user buffer from index bCursor,
+    // AbfsInutStream buffer is going to contain data from last block start. In
+    // that case bCursor will be set to fCursor - lastBlockStart
+    long lastBlockStart = max(0, contentLength - bufferSize);
+    bCursor = (int) (fCursor - lastBlockStart);
+    // 0 if contentlength is < buffersize
+    long actualLenToRead = min(bufferSize, contentLength);
+    return optimisedRead(b, off, len, lastBlockStart, actualLenToRead);
+  }
+
+  private int optimisedRead(final byte[] b, final int off, final int len,
+      final long readFrom, final long actualLen) throws IOException {
+    fCursor = readFrom;
+    int totalBytesRead = 0;
+    int lastBytesRead = 0;
+    try {
+      buffer = new byte[bufferSize];
+      for (int i = 0;
+           i < MAX_OPTIMIZED_READ_ATTEMPTS && fCursor < contentLength; i++) {
+        lastBytesRead = readInternal(fCursor, buffer, limit,
+            (int) actualLen - limit, true);
+        if (lastBytesRead > 0) {
+          totalBytesRead += lastBytesRead;
+          limit += lastBytesRead;
+          fCursor += lastBytesRead;
+          fCursorAfterLastRead = fCursor;
+        }
+      }
+    } catch (IOException e) {
+      LOG.debug("Optimized read failed. Defaulting to readOneBlock {}", e);
+      restorePointerState();
+      return readOneBlock(b, off, len);
+    } finally {
+      firstRead = false;
+    }
+    if (totalBytesRead < 1) {
+      restorePointerState();
+      return -1;
+    }
+    //  If the read was partial and the user requested part of data has
+    //  not read then fallback to readoneblock. When limit is smaller than
+    //  bCursor that means the user requested data has not been read.
+    if (fCursor < contentLength && bCursor > limit) {
+      restorePointerState();
+      return readOneBlock(b, off, len);
+    }
+    return copyToUserBuffer(b, off, len);
+  }
+
+  private void savePointerState() {
+    //  Saving the current state for fall back ifn case optimization fails
+    this.limitBkp = this.limit;
+    this.fCursorBkp = this.fCursor;
+    this.fCursorAfterLastReadBkp = this.fCursorAfterLastRead;
+    this.bCursorBkp = this.bCursor;
+  }
+
+  private void restorePointerState() {
+    //  Saving the current state for fall back ifn case optimization fails
+    this.limit = this.limitBkp;
+    this.fCursor = this.fCursorBkp;
+    this.fCursorAfterLastRead = this.fCursorAfterLastReadBkp;
+    this.bCursor = this.bCursorBkp;
+  }
+
+  private boolean validate(final byte[] b, final int off, final int len)
+      throws IOException {
+    if (closed) {
+      throw new IOException(FSExceptionMessages.STREAM_IS_CLOSED);
+    }
+
+    Preconditions.checkNotNull(b);
+    LOG.debug("read one block requested b.length = {} off {} len {}", b.length,
+        off, len);
+
+    if (this.available() == 0) {
+      return false;
+    }
+
+    if (off < 0 || len < 0 || len > b.length - off) {
+      throw new IndexOutOfBoundsException();
+    }
+    return true;
+  }
+
+  private int copyToUserBuffer(byte[] b, int off, int len){
     //If there is anything in the buffer, then return lesser of (requested bytes) and (bytes in buffer)
     //(bytes returned may be less than requested)
     int bytesRemaining = limit - bCursor;
-    int bytesToRead = Math.min(len, bytesRemaining);
+    int bytesToRead = min(len, bytesRemaining);
     System.arraycopy(buffer, bCursor, b, off, bytesToRead);
     bCursor += bytesToRead;
     if (statistics != null) {
       statistics.incrementBytesRead(bytesToRead);
     }
+    if (streamStatistics != null) {
+      // Bytes read from the local buffer.
+      streamStatistics.bytesReadFromBuffer(bytesToRead);
+      streamStatistics.bytesRead(bytesToRead);
+    }
     return bytesToRead;
   }
-
 
   private int readInternal(final long position, final byte[] b, final int offset, final int length,
                            final boolean bypassReadAhead) throws IOException {
@@ -183,18 +364,30 @@ public class AbfsInputStream extends FSInputStream {
 
       // queue read-aheads
       int numReadAheads = this.readAheadQueueDepth;
-      long nextSize;
       long nextOffset = position;
+      // First read to queue needs to be of readBufferSize and later
+      // of readAhead Block size
+      long nextSize = min((long) bufferSize, contentLength - nextOffset);
+      LOG.debug("read ahead enabled issuing readheads num = {}", numReadAheads);
       while (numReadAheads > 0 && nextOffset < contentLength) {
-        nextSize = Math.min((long) bufferSize, contentLength - nextOffset);
+        LOG.debug("issuing read ahead requestedOffset = {} requested size {}",
+            nextOffset, nextSize);
         ReadBufferManager.getBufferManager().queueReadAhead(this, nextOffset, (int) nextSize);
         nextOffset = nextOffset + nextSize;
         numReadAheads--;
+        // From next round onwards should be of readahead block size.
+        nextSize = min((long) readAheadBlockSize, contentLength - nextOffset);
       }
 
       // try reading from buffers first
       receivedBytes = ReadBufferManager.getBufferManager().getBlock(this, position, length, b);
+      bytesFromReadAhead += receivedBytes;
       if (receivedBytes > 0) {
+        incrementReadOps();
+        LOG.debug("Received data from read ahead, not doing remote read");
+        if (streamStatistics != null) {
+          streamStatistics.readAheadBytesRead(receivedBytes);
+        }
         return receivedBytes;
       }
 
@@ -202,6 +395,7 @@ public class AbfsInputStream extends FSInputStream {
       receivedBytes = readRemote(position, b, offset, length);
       return receivedBytes;
     } else {
+      LOG.debug("read ahead disabled, reading remote");
       return readRemote(position, b, offset, length);
     }
   }
@@ -226,8 +420,17 @@ public class AbfsInputStream extends FSInputStream {
       throw new IllegalArgumentException("requested read length is more than will fit after requested offset in buffer");
     }
     final AbfsRestOperation op;
-    try {
+    AbfsPerfTracker tracker = client.getAbfsPerfTracker();
+    try (AbfsPerfInfo perfInfo = new AbfsPerfInfo(tracker, "readRemote", "read")) {
+      LOG.trace("Trigger client.read for path={} position={} offset={} length={}", path, position, offset, length);
       op = client.read(path, position, b, offset, length, tolerateOobAppends ? "*" : eTag);
+      if (streamStatistics != null) {
+        streamStatistics.remoteReadOperation();
+      }
+      LOG.debug("issuing HTTP GET request params position = {} b.length = {} "
+          + "offset = {} length = {}", position, b.length, offset, length);
+      perfInfo.registerResult(op.getResult()).registerSuccess(true);
+      incrementReadOps();
     } catch (AzureBlobFileSystemException ex) {
       if (ex instanceof AbfsRestOperationException) {
         AbfsRestOperationException ere = (AbfsRestOperationException) ex;
@@ -238,10 +441,24 @@ public class AbfsInputStream extends FSInputStream {
       throw new IOException(ex);
     }
     long bytesRead = op.getResult().getBytesReceived();
+    if (streamStatistics != null) {
+      streamStatistics.remoteBytesRead(bytesRead);
+    }
     if (bytesRead > Integer.MAX_VALUE) {
       throw new IOException("Unexpected Content-Length");
     }
+    LOG.debug("HTTP request read bytes = {}", bytesRead);
+    bytesFromRemoteRead += bytesRead;
     return (int) bytesRead;
+  }
+
+  /**
+   * Increment Read Operations.
+   */
+  private void incrementReadOps() {
+    if (statistics != null) {
+      statistics.incrementReadOps(1);
+    }
   }
 
   /**
@@ -252,6 +469,7 @@ public class AbfsInputStream extends FSInputStream {
    */
   @Override
   public synchronized void seek(long n) throws IOException {
+    LOG.debug("requested seek to position {}", n);
     if (closed) {
       throw new IOException(FSExceptionMessages.STREAM_IS_CLOSED);
     }
@@ -262,13 +480,21 @@ public class AbfsInputStream extends FSInputStream {
       throw new EOFException(FSExceptionMessages.CANNOT_SEEK_PAST_EOF);
     }
 
+    if (streamStatistics != null) {
+      streamStatistics.seek(n, fCursor);
+    }
+
     if (n>=fCursor-limit && n<=fCursor) { // within buffer
       bCursor = (int) (n-(fCursor-limit));
+      if (streamStatistics != null) {
+        streamStatistics.seekInBuffer();
+      }
       return;
     }
 
     // next read will read from here
     fCursor = n;
+    LOG.debug("set fCursor to {}", fCursor);
 
     //invalidate buffer
     limit = 0;
@@ -360,6 +586,7 @@ public class AbfsInputStream extends FSInputStream {
   public synchronized void close() throws IOException {
     closed = true;
     buffer = null; // de-reference the buffer so it can be GC'ed sooner
+    LOG.debug("Closing {}", this);
   }
 
   /**
@@ -387,5 +614,95 @@ public class AbfsInputStream extends FSInputStream {
   @Override
   public boolean markSupported() {
     return false;
+  }
+
+  /**
+   * Getter for AbfsInputStreamStatistics.
+   *
+   * @return an instance of AbfsInputStreamStatistics.
+   */
+  @VisibleForTesting
+  public AbfsInputStreamStatistics getStreamStatistics() {
+    return streamStatistics;
+  }
+
+  /**
+   * Getter for bytes read from readAhead buffer that fills asynchronously.
+   *
+   * @return value of the counter in long.
+   */
+  @VisibleForTesting
+  public long getBytesFromReadAhead() {
+    return bytesFromReadAhead;
+  }
+
+  /**
+   * Getter for bytes read remotely from the data store.
+   *
+   * @return value of the counter in long.
+   */
+  @VisibleForTesting
+  public long getBytesFromRemoteRead() {
+    return bytesFromRemoteRead;
+  }
+
+  @VisibleForTesting
+  public int getBufferSize() {
+    return bufferSize;
+  }
+
+  @VisibleForTesting
+  public int getReadAheadQueueDepth() {
+    return readAheadQueueDepth;
+  }
+
+  @VisibleForTesting
+  public boolean shouldAlwaysReadBufferSize() {
+    return alwaysReadBufferSize;
+  }
+
+  /**
+   * Get the statistics of the stream.
+   * @return a string value.
+   */
+  @Override
+  public String toString() {
+    final StringBuilder sb = new StringBuilder(super.toString());
+    if (streamStatistics != null) {
+      sb.append("AbfsInputStream@(").append(this.hashCode()).append("){");
+      sb.append(streamStatistics.toString());
+      sb.append("}");
+    }
+    return sb.toString();
+  }
+
+  @VisibleForTesting
+  int getBCursor() {
+    return this.bCursor;
+  }
+
+  @VisibleForTesting
+  long getFCursor() {
+    return this.fCursor;
+  }
+
+  @VisibleForTesting
+  long getFCursorAfterLastRead() {
+    return this.fCursorAfterLastRead;
+  }
+
+  @VisibleForTesting
+  long getLimit() {
+    return this.limit;
+  }
+
+  @VisibleForTesting
+  byte[] getBuffer() {
+    return buffer;
+  }
+
+  @VisibleForTesting
+  String geteTag() {
+    return eTag;
   }
 }

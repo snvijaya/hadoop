@@ -1,0 +1,127 @@
+#!/usr/bin/env bash
+
+# shellcheck disable=SC2034
+# unused variables are global in nature and used in testsupport.sh
+
+set -eo pipefail
+
+## Licensed to the Apache Software Foundation (ASF) under one or more
+## contributor license agreements.  See the NOTICE file distributed with
+## this work for additional information regarding copyright ownership.
+## The ASF licenses this file to You under the Apache License, Version 2.0
+## (the "License"); you may not use this file except in compliance with
+## the License.  You may obtain a copy of the License at
+##
+##     http://www.apache.org/licenses/LICENSE-2.0
+##
+## Unless required by applicable law or agreed to in writing, software
+## distributed under the License is distributed on an "AS IS" BASIS,
+## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+## See the License for the specific language governing permissions and
+## limitations under the License.
+
+. dev-support/testrun-scripts/testsupport.sh
+init
+
+resourceDir=src/test/resources/
+logdir=dev-support/testlogs/
+azureTestXml=azure-test.xml
+azureTestXmlPath=$resourceDir$azureTestXml
+threadCount=8
+
+runHNSOAuthTest()
+{
+  accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.hnsTestAccountName"]/value' $azureTestXmlPath)
+  properties=("fs.azure.account.auth.type")
+  values=("OAuth")
+  triggerRun HNS-OAuth $accountName $runTest $threadCount
+}
+
+runHNSSharedKeyTest()
+{
+  accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.hnsTestAccountName"]/value' $azureTestXmlPath)
+  properties=("fs.azure.account.auth.type")
+  values=("SharedKey")
+  triggerRun HNS-SharedKey $accountName  $runTest $threadCount
+}
+
+runNonHNSSharedKeyTest()
+{
+  accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.nonHnsTestAccountName"]/value' $azureTestXmlPath)
+  properties=("fs.azure.account.auth.type")
+  values=("SharedKey")
+  triggerRun NonHNS-SharedKey $accountName $runTest $threadCount
+}
+
+runTest=true
+echo 'Ensure below are complete before running script:'
+echo '1. Account specific settings file is present.'
+echo '   Copy accountName_settings.xml.template to accountName_settings.xml'
+echo '   where accountName in copied file name should be the test account name without domain'
+echo '   (accountName_settings.xml.template is present in src/test/resources/accountName_settings'
+echo '   folder. New account settings file to be added to same folder.)'
+echo '   Follow instructions in the template to populate settings correctly for the account'
+echo '2. In azure-test.xml, update properties fs.azure.hnsTestAccountName and fs.azure.nonHnsTestAccountName'
+echo '   where accountNames should be the test account names without domain'
+echo ' '
+echo ' '
+echo 'Choose mode:'
+echo '[Note - SET_ACTIVE_TEST_CONFIG will help activate the config for IDE/single test class runs]'
+select scriptMode in SET_ACTIVE_TEST_CONFIG RUN_TEST
+do
+  case $scriptMode in
+  SET_ACTIVE_TEST_CONFIG)
+    runTest=false
+    break
+    ;;
+  RUN_TEST)
+    runTest=true
+    read -p "Enter parallel test run thread count [default - 8]: " threadCount
+    threadCount=${threadCount:-8}
+    break
+    ;;
+  *) echo "ERROR: Invalid selection"
+      ;;
+   esac
+done
+
+echo ' '
+echo 'Pick combination from the following:'
+select combo in HNS-OAuth HNS-SharedKey nonHNS-SharedKey All Quit
+do
+   case $combo in
+      HNS-OAuth)
+         runHNSOAuthTest
+         break
+         ;;
+      HNS-SharedKey)
+         runHNSSharedKeyTest
+         break
+         ;;
+      nonHNS-SharedKey)
+         runNonHNSSharedKeyTest
+         break
+         ;;
+      All)
+        if [ $runTest == false ]
+        then
+          echo "ERROR: Invalid selection for SET_ACTIVE_TEST_CONFIG"
+          break
+        fi
+         runHNSOAuthTest
+         runHNSSharedKeyTest
+         runNonHNSSharedKeyTest
+         break
+         ;;
+      Quit)
+         break
+      ;;
+      *) echo "ERROR: Invalid selection"
+      ;;
+   esac
+done
+
+if [ $runTest == true ]
+then
+  printAggregate
+fi

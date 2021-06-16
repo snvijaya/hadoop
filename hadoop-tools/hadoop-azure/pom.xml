@@ -32,6 +32,9 @@
   <packaging>jar</packaging>
 
   <properties>
+    <javac.version>1.8</javac.version>
+    <maven.compiler.source>${javac.version}</maven.compiler.source>
+    <maven.compiler.target>${javac.version}</maven.compiler.target>
     <file.encoding>UTF-8</file.encoding>
     <downloadSources>true</downloadSources>
     <hadoop.tmp.dir>${project.build.directory}/test</hadoop.tmp.dir>
@@ -49,6 +52,16 @@
 
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven-compiler-plugin.version}</version>
+        <configuration>
+          <source>${javac.version}</source>
+          <target>${javac.version}</target>
+        </configuration>
+      </plugin>
+
       <plugin>
         <groupId>com.github.spotbugs</groupId>
         <artifactId>spotbugs-maven-plugin</artifactId>
@@ -93,6 +106,32 @@
         </executions>
       </plugin>
 
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>animal-sniffer-maven-plugin</artifactId>
+        <version>1.16</version>
+        <executions>
+          <execution>
+            <id>signature-check</id>
+            <phase>verify</phase>
+            <goals>
+              <goal>check</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <signature>
+            <groupId>org.codehaus.mojo.signature</groupId>
+            <artifactId>java18</artifactId>
+            <version>1.0</version>
+          </signature>
+          <ignores>
+            <ignore>sun.misc.*</ignore>
+            <ignore>sun.net.*</ignore>
+            <ignore>sun.nio.ch.*</ignore>
+          </ignores>
+        </configuration>
+      </plugin>
     </plugins>
 
     
@@ -125,6 +164,32 @@
                 </pluginExecution>
               </pluginExecutions>
             </lifecycleMappingMetadata>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>animal-sniffer-maven-plugin</artifactId>
+          <version>1.16</version>
+          <executions>
+            <execution>
+              <id>signature-check</id>
+              <phase>verify</phase>
+              <goals>
+                <goal>check</goal>
+              </goals>
+            </execution>
+          </executions>
+          <configuration>
+            <signature>
+              <groupId>org.codehaus.mojo.signature</groupId>
+              <artifactId>java18</artifactId>
+              <version>1.0</version>
+            </signature>
+            <ignores>
+              <ignore>sun.misc.*</ignore>
+              <ignore>sun.net.*</ignore>
+              <ignore>sun.nio.ch.*</ignore>
+            </ignores>
           </configuration>
         </plugin>
       </plugins>
@@ -254,6 +319,12 @@
       <scope>test</scope>
     </dependency>
 
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>3.12.2</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <profiles>

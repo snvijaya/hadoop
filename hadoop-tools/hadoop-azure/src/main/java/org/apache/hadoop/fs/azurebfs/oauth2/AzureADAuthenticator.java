@@ -172,6 +172,11 @@ public final class AzureADAuthenticator {
   public static class HttpException extends IOException {
     private int httpErrorCode;
     private String requestId;
+    private final String url;
+
+    private final String contentType;
+
+    private final String body;
 
     /**
      * Gets Http error status code.
@@ -189,10 +194,56 @@ public final class AzureADAuthenticator {
       return this.requestId;
     }
 
-    HttpException(int httpErrorCode, String requestId, String message) {
+    protected HttpException(
+        final int httpErrorCode,
+        final String requestId,
+        final String message,
+        final String url,
+        final String contentType,
+        final String body) {
       super(message);
       this.httpErrorCode = httpErrorCode;
       this.requestId = requestId;
+      this.url = url;
+      this.contentType = contentType;
+      this.body = body;
+    }
+
+    public String getUrl() {
+      return url;
+    }
+
+    public String getContentType() {
+      return contentType;
+    }
+
+    public String getBody() {
+      return body;
+    }
+
+    @Override
+    public String getMessage() {
+      final StringBuilder sb = new StringBuilder();
+      sb.append("HTTP Error ");
+      sb.append(httpErrorCode);
+      if (!url.isEmpty()) {
+        sb.append("; url='").append(url).append('\'').append(' ');
+      }
+
+      sb.append(super.getMessage());
+      if (!requestId.isEmpty()) {
+        sb.append("; requestId='").append(requestId).append('\'');
+      }
+
+      if (!contentType.isEmpty()) {
+        sb.append("; contentType='").append(contentType).append('\'');
+      }
+
+      if (!body.isEmpty()) {
+        sb.append("; response '").append(body).append('\'');
+      }
+
+      return sb.toString();
     }
   }
 
@@ -283,6 +334,8 @@ public final class AzureADAuthenticator {
         if (httpProxy != null || httpsProxy != null) {
           proxies = "http:" + httpProxy + "; https:" + httpsProxy;
         }
+        String operation = "AADToken: HTTP connection to " + authEndpoint
+            + " failed for getting token from AzureAD.";
         String logMessage =
                 "AADToken: HTTP connection failed for getting token from AzureAD. Http response: "
                         + httpResponseCode + " " + conn.getResponseMessage()
@@ -292,7 +345,12 @@ public final class AzureADAuthenticator {
                         + " Proxies: " + proxies
                         + "\nFirst 1K of Body: " + responseBody;
         LOG.debug(logMessage);
-        throw new HttpException(httpResponseCode, requestId, logMessage);
+        throw new HttpException(httpResponseCode,
+            requestId,
+            operation,
+            authEndpoint,
+            responseContentType,
+            responseBody);
       }
     } finally {
       if (conn != null) {

@@ -48,6 +48,7 @@ import org.apache.hadoop.fs.azurebfs.diagnostics.LongConfigurationBasicValidator
 import org.apache.hadoop.fs.azurebfs.diagnostics.StringConfigurationBasicValidator;
 import org.apache.hadoop.fs.azurebfs.extensions.AbfsAuthorizationException;
 import org.apache.hadoop.fs.azurebfs.extensions.AbfsAuthorizer;
+import org.apache.hadoop.fs.azurebfs.enums.Trilean;
 import org.apache.hadoop.fs.azurebfs.extensions.CustomTokenProviderAdaptee;
 import org.apache.hadoop.fs.azurebfs.oauth2.AccessTokenProvider;
 import org.apache.hadoop.fs.azurebfs.oauth2.ClientCredsTokenProvider;
@@ -63,6 +64,9 @@ import org.apache.hadoop.fs.azurebfs.utils.SSLSocketFactoryEx;
 import org.apache.hadoop.security.ProviderUtils;
 import org.apache.hadoop.util.ReflectionUtils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static org.apache.hadoop.fs.azurebfs.constants.ConfigurationKeys.*;
 import static org.apache.hadoop.fs.azurebfs.constants.FileSystemConfigurations.*;
 
@@ -76,12 +80,27 @@ public class AbfsConfiguration{
   private final Configuration rawConfig;
   private final String accountName;
   private final boolean isSecure;
+  private static final Logger LOG = LoggerFactory.getLogger(AbfsConfiguration.class);
+
+  @StringConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_ACCOUNT_IS_HNS_ENABLED,
+      DefaultValue = DEFAULT_FS_AZURE_ACCOUNT_IS_HNS_ENABLED)
+  private String isNamespaceEnabledAccount;
 
   @IntegerConfigurationValidatorAnnotation(ConfigurationKey = AZURE_WRITE_BUFFER_SIZE,
       MinValue = MIN_BUFFER_SIZE,
       MaxValue = MAX_BUFFER_SIZE,
       DefaultValue = DEFAULT_WRITE_BUFFER_SIZE)
   private int writeBufferSize;
+
+  @BooleanConfigurationValidatorAnnotation(
+      ConfigurationKey = AZURE_READ_SMALL_FILES_COMPLETELY,
+      DefaultValue = DEFAULT_READ_SMALL_FILES_COMPLETELY)
+  private boolean readSmallFilesCompletely;
+
+  @BooleanConfigurationValidatorAnnotation(
+      ConfigurationKey = AZURE_READ_OPTIMIZE_FOOTER_READ,
+      DefaultValue = DEFAULT_OPTIMIZE_FOOTER_READ)
+  private boolean optimizeFooterRead;
 
   @IntegerConfigurationValidatorAnnotation(ConfigurationKey = AZURE_READ_BUFFER_SIZE,
       MinValue = MIN_BUFFER_SIZE,
@@ -106,6 +125,11 @@ public class AbfsConfiguration{
       DefaultValue = DEFAULT_MAX_RETRY_ATTEMPTS)
   private int maxIoRetries;
 
+  @IntegerConfigurationValidatorAnnotation(ConfigurationKey = AZURE_CUSTOM_TOKEN_FETCH_RETRY_COUNT,
+      MinValue = 0,
+      DefaultValue = DEFAULT_CUSTOM_TOKEN_FETCH_RETRY_COUNT)
+  private int customTokenFetchRetryCount;
+
   @LongConfigurationValidatorAnnotation(ConfigurationKey = AZURE_BLOCK_SIZE_PROPERTY_NAME,
       MinValue = 0,
       MaxValue = MAX_AZURE_BLOCK_SIZE,
@@ -120,6 +144,11 @@ public class AbfsConfiguration{
       MinValue = 1,
       DefaultValue = MAX_CONCURRENT_WRITE_THREADS)
   private int maxConcurrentWriteThreads;
+
+  @IntegerConfigurationValidatorAnnotation(ConfigurationKey = AZURE_LIST_MAX_RESULTS,
+      MinValue = 1,
+      DefaultValue = DEFAULT_AZURE_LIST_MAX_RESULTS)
+  private int listMaxResults;
 
   @IntegerConfigurationValidatorAnnotation(ConfigurationKey = AZURE_CONCURRENT_CONNECTION_VALUE_IN,
       MinValue = 1,
@@ -145,6 +174,16 @@ public class AbfsConfiguration{
   @IntegerConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_READ_AHEAD_QUEUE_DEPTH,
       DefaultValue = DEFAULT_READ_AHEAD_QUEUE_DEPTH)
   private int readAheadQueueDepth;
+
+  @IntegerConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_READ_AHEAD_BLOCK_SIZE,
+      MinValue = MIN_BUFFER_SIZE,
+      MaxValue = MAX_BUFFER_SIZE,
+      DefaultValue = DEFAULT_READ_AHEAD_BLOCK_SIZE)
+  private int readAheadBlockSize;
+
+  @BooleanConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_ALWAYS_READ_BUFFER_SIZE,
+      DefaultValue = DEFAULT_ALWAYS_READ_BUFFER_SIZE)
+  private boolean alwaysReadBufferSize;
 
   @BooleanConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_ENABLE_FLUSH,
       DefaultValue = DEFAULT_ENABLE_FLUSH)
@@ -182,6 +221,10 @@ public class AbfsConfiguration{
       FS_AZURE_ENABLE_CHECK_ACCESS, DefaultValue = DEFAULT_ENABLE_CHECK_ACCESS)
   private boolean isCheckAccessEnabled;
 
+  @BooleanConfigurationValidatorAnnotation(ConfigurationKey = FS_AZURE_ABFS_LATENCY_TRACK,
+          DefaultValue = DEFAULT_ABFS_LATENCY_TRACK)
+  private boolean trackLatency;
+
   private Map<String, String> storageAccountKeys;
 
   public AbfsConfiguration(final Configuration rawConfig, String accountName)
@@ -207,6 +250,18 @@ public class AbfsConfiguration{
         field.set(this, validateBoolean(field));
       }
     }
+  }
+
+  public Trilean getIsNamespaceEnabledAccount() {
+    return Trilean.getTrilean(isNamespaceEnabledAccount);
+  }
+
+  /**
+   * Gets the Azure Storage account name corresponding to this instance of configuration.
+   * @return the Azure Storage account name
+   */
+  public String getAccountName() {
+    return accountName;
   }
 
   /**
@@ -280,29 +335,89 @@ public class AbfsConfiguration{
   }
 
   /**
-   * Returns the account-specific Class if it exists, then looks for an
-   * account-agnostic value, and finally tries the default value.
+   * Returns account-specific token provider class if it exists, else checks if
+   * an account-agnostic setting is present for token provider class if AuthType
+   * matches with authType passed.
+   * @param authType AuthType effective on the account
    * @param name Account-agnostic configuration key
    * @param defaultValue Class returned if none is configured
    * @param xface Interface shared by all possible values
+   * @param <U> Interface class type
    * @return Highest-precedence Class object that was found
    */
-  public <U> Class<? extends U> getClass(String name, Class<? extends U> defaultValue, Class<U> xface) {
+  public <U> Class<? extends U> getTokenProviderClass(AuthType authType,
+      String name,
+      Class<? extends U> defaultValue,
+      Class<U> xface) {
+    Class<?> tokenProviderClass = getAccountSpecificClass(name, defaultValue,
+        xface);
+
+    // If there is none set specific for account
+    // fall back to generic setting if Auth Type matches
+    if ((tokenProviderClass == null)
+        && (authType == getAccountAgnosticEnum(
+        FS_AZURE_ACCOUNT_AUTH_TYPE_PROPERTY_NAME, AuthType.SharedKey))) {
+      tokenProviderClass = getAccountAgnosticClass(name, defaultValue, xface);
+    }
+
+    return (tokenProviderClass == null)
+        ? null
+        : tokenProviderClass.asSubclass(xface);
+  }
+
+  /**
+   * Returns the account-specific class if it exists, else returns default value.
+   * @param name Account-agnostic configuration key
+   * @param defaultValue Class returned if none is configured
+   * @param xface Interface shared by all possible values
+   * @param <U> Interface class type
+   * @return Account specific Class object that was found
+   */
+  public <U> Class<? extends U> getAccountSpecificClass(String name,
+      Class<? extends U> defaultValue,
+      Class<U> xface) {
     return rawConfig.getClass(accountConf(name),
-        rawConfig.getClass(name, defaultValue, xface),
+        defaultValue,
         xface);
   }
 
   /**
-   * Returns the account-specific password in string form if it exists, then
+   * Returns account-agnostic Class if it exists, else returns the default value.
+   * @param name Account-agnostic configuration key
+   * @param defaultValue Class returned if none is configured
+   * @param xface Interface shared by all possible values
+   * @param <U> Interface class type
+   * @return Account-Agnostic Class object that was found
+   */
+  public <U> Class<? extends U> getAccountAgnosticClass(String name,
+      Class<? extends U> defaultValue,
+      Class<U> xface) {
+    return rawConfig.getClass(name, defaultValue, xface);
+  }
+
+  /**
+   * Returns the account-specific enum value if it exists, then
    * looks for an account-agnostic value.
    * @param name Account-agnostic configuration key
    * @param defaultValue Value returned if none is configured
-   * @return value in String form if one exists, else null
+   * @param <T> Enum type
+   * @return enum value if one exists, else null
    */
   public <T extends Enum<T>> T getEnum(String name, T defaultValue) {
     return rawConfig.getEnum(accountConf(name),
         rawConfig.getEnum(name, defaultValue));
+  }
+
+  /**
+   * Returns the account-agnostic enum value if it exists, else
+   * return default.
+   * @param name Account-agnostic configuration key
+   * @param defaultValue Value returned if none is configured
+   * @param <T> Enum type
+   * @return enum value if one exists, else null
+   */
+  public <T extends Enum<T>> T getAccountAgnosticEnum(String name, T defaultValue) {
+    return rawConfig.getEnum(name, defaultValue);
   }
 
   /**
@@ -379,6 +494,14 @@ public class AbfsConfiguration{
     return this.writeBufferSize;
   }
 
+  public boolean readSmallFilesCompletely() {
+    return this.readSmallFilesCompletely;
+  }
+
+  public boolean optimizeFooterRead() {
+    return this.optimizeFooterRead;
+  }
+
   public int getReadBufferSize() {
     return this.readBufferSize;
   }
@@ -397,6 +520,10 @@ public class AbfsConfiguration{
 
   public int getMaxIoRetries() {
     return this.maxIoRetries;
+  }
+
+  public int getCustomTokenFetchRetryCount() {
+    return this.customTokenFetchRetryCount;
   }
 
   public long getAzureBlockSize() {
@@ -419,6 +546,10 @@ public class AbfsConfiguration{
     return this.maxConcurrentReadThreads;
   }
 
+  public int getListMaxResults() {
+    return this.listMaxResults;
+  }
+
   public boolean getTolerateOobAppends() {
     return this.tolerateOobAppends;
   }
@@ -437,6 +568,14 @@ public class AbfsConfiguration{
 
   public int getReadAheadQueueDepth() {
     return this.readAheadQueueDepth;
+  }
+
+  public int getReadAheadBlockSize() {
+    return this.readAheadBlockSize;
+  }
+
+  public boolean shouldReadBufferSizeAlways() {
+    return this.alwaysReadBufferSize;
   }
 
   public boolean isFlushEnabled() {
@@ -479,24 +618,37 @@ public class AbfsConfiguration{
     return this.useUpn;
   }
 
+  /**
+   * Whether {@code AbfsClient} should track and send latency info back to storage servers.
+   *
+   * @return a boolean indicating whether latency should be tracked.
+   */
+  public boolean shouldTrackLatency() {
+    return this.trackLatency;
+  }
+
   public AccessTokenProvider getTokenProvider() throws TokenAccessProviderException {
     AuthType authType = getEnum(FS_AZURE_ACCOUNT_AUTH_TYPE_PROPERTY_NAME, AuthType.SharedKey);
     if (authType == AuthType.OAuth) {
       try {
         Class<? extends AccessTokenProvider> tokenProviderClass =
-                getClass(FS_AZURE_ACCOUNT_TOKEN_PROVIDER_TYPE_PROPERTY_NAME, null,
-                        AccessTokenProvider.class);
+            getTokenProviderClass(authType,
+            FS_AZURE_ACCOUNT_TOKEN_PROVIDER_TYPE_PROPERTY_NAME, null,
+            AccessTokenProvider.class);
+
         AccessTokenProvider tokenProvider = null;
         if (tokenProviderClass == ClientCredsTokenProvider.class) {
           String authEndpoint = getPasswordString(FS_AZURE_ACCOUNT_OAUTH_CLIENT_ENDPOINT);
           String clientId = getPasswordString(FS_AZURE_ACCOUNT_OAUTH_CLIENT_ID);
           String clientSecret = getPasswordString(FS_AZURE_ACCOUNT_OAUTH_CLIENT_SECRET);
           tokenProvider = new ClientCredsTokenProvider(authEndpoint, clientId, clientSecret);
+          LOG.trace("ClientCredsTokenProvider initialized");
         } else if (tokenProviderClass == UserPasswordTokenProvider.class) {
           String authEndpoint = getPasswordString(FS_AZURE_ACCOUNT_OAUTH_CLIENT_ENDPOINT);
           String username = getPasswordString(FS_AZURE_ACCOUNT_OAUTH_USER_NAME);
           String password = getPasswordString(FS_AZURE_ACCOUNT_OAUTH_USER_PASSWORD);
           tokenProvider = new UserPasswordTokenProvider(authEndpoint, username, password);
+          LOG.trace("UserPasswordTokenProvider initialized");
         } else if (tokenProviderClass == MsiTokenProvider.class) {
           String authEndpoint = getTrimmedPasswordString(
               FS_AZURE_ACCOUNT_OAUTH_MSI_ENDPOINT,
@@ -509,6 +661,7 @@ public class AbfsConfiguration{
           authority = appendSlashIfNeeded(authority);
           tokenProvider = new MsiTokenProvider(authEndpoint, tenantGuid,
               clientId, authority);
+          LOG.trace("MsiTokenProvider initialized");
         } else if (tokenProviderClass == RefreshTokenBasedTokenProvider.class) {
           String authEndpoint = getTrimmedPasswordString(
               FS_AZURE_ACCOUNT_OAUTH_REFRESH_TOKEN_ENDPOINT,
@@ -517,6 +670,7 @@ public class AbfsConfiguration{
           String clientId = getPasswordString(FS_AZURE_ACCOUNT_OAUTH_CLIENT_ID);
           tokenProvider = new RefreshTokenBasedTokenProvider(authEndpoint,
               clientId, refreshToken);
+          LOG.trace("RefreshTokenBasedTokenProvider initialized");
         } else {
           throw new IllegalArgumentException("Failed to initialize " + tokenProviderClass);
         }
@@ -524,14 +678,17 @@ public class AbfsConfiguration{
       } catch(IllegalArgumentException e) {
         throw e;
       } catch (Exception e) {
-        throw new TokenAccessProviderException("Unable to load key provider class.", e);
+        throw new TokenAccessProviderException("Unable to load OAuth token provider class.", e);
       }
 
     } else if (authType == AuthType.Custom) {
       try {
         String configKey = FS_AZURE_ACCOUNT_TOKEN_PROVIDER_TYPE_PROPERTY_NAME;
-        Class<? extends CustomTokenProviderAdaptee> customTokenProviderClass =
-                getClass(configKey, null, CustomTokenProviderAdaptee.class);
+
+        Class<? extends CustomTokenProviderAdaptee> customTokenProviderClass
+            = getTokenProviderClass(authType, configKey, null,
+            CustomTokenProviderAdaptee.class);
+
         if (customTokenProviderClass == null) {
           throw new IllegalArgumentException(
                   String.format("The configuration value for \"%s\" is invalid.", configKey));
@@ -541,8 +698,10 @@ public class AbfsConfiguration{
         if (azureTokenProvider == null) {
           throw new IllegalArgumentException("Failed to initialize " + customTokenProviderClass);
         }
+        LOG.trace("Initializing {}", customTokenProviderClass.getName());
         azureTokenProvider.initialize(rawConfig, accountName);
-        return new CustomTokenProviderAdapter(azureTokenProvider);
+        LOG.trace("{} init complete", customTokenProviderClass.getName());
+        return new CustomTokenProviderAdapter(azureTokenProvider, getCustomTokenFetchRetryCount());
       } catch(IllegalArgumentException e) {
         throw e;
       } catch (Exception e) {
@@ -568,7 +727,9 @@ public class AbfsConfiguration{
         @SuppressWarnings("unchecked")
         Class<AbfsAuthorizer> authClass = (Class<AbfsAuthorizer>) rawConfig.getClassByName(authClassName);
         authorizer = authClass.getConstructor(new Class[] {Configuration.class}).newInstance(rawConfig);
+        LOG.trace("Initializing {}", authClassName);
         authorizer.init();
+        LOG.trace("{} init complete", authClassName);
       }
     } catch (
         IllegalAccessException
@@ -673,6 +834,21 @@ public class AbfsConfiguration{
     this.disableOutputStreamFlush = disableOutputStreamFlush;
   }
 
+  @VisibleForTesting
+  void setListMaxResults(int listMaxResults) {
+    this.listMaxResults = listMaxResults;
+  }
+
+  @VisibleForTesting
+  public void setMaxIoRetries(int maxIoRetries) {
+    this.maxIoRetries = maxIoRetries;
+  }
+
+  @VisibleForTesting
+  void setIsNamespaceEnabledAccount(String isNamespaceEnabledAccount) {
+    this.isNamespaceEnabledAccount = isNamespaceEnabledAccount;
+  }
+
   private String getTrimmedPasswordString(String key, String defaultValue) throws IOException {
     String value = getPasswordString(key);
     if (StringUtils.isBlank(value)) {
@@ -686,6 +862,16 @@ public class AbfsConfiguration{
       authority = authority + AbfsHttpConstants.FORWARD_SLASH;
     }
     return authority;
+  }
+
+  @VisibleForTesting
+  public void setReadSmallFilesCompletely(boolean readSmallFilesCompletely) {
+    this.readSmallFilesCompletely = readSmallFilesCompletely;
+  }
+
+  @VisibleForTesting
+  public void setOptimizeFooterRead(boolean optimizeFooterRead) {
+    this.optimizeFooterRead = optimizeFooterRead;
   }
 
 }

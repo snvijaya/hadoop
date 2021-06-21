@@ -20,31 +20,125 @@ set -eo pipefail
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# shellcheck disable=SC1091
 . dev-support/testrun-scripts/testsupport.sh
+init
 
-begin
+resourceDir=src/test/resources/
+logdir=dev-support/testlogs/
+azureTestXml=azure-auth-keys.xml
+azureTestXmlPath=$resourceDir$azureTestXml
+threadCount=8
 
-### ADD THE TEST COMBINATIONS BELOW. DO NOT EDIT THE ABOVE LINES.
+## SECTION: TEST COMBINATION METHODS
 
+runHNSOAuthTest()
+{
+  accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.hnsTestAccountName"]/value' $azureTestXmlPath)
+  properties=("fs.azure.account.auth.type")
+  values=("OAuth")
+  triggerRun HNS-OAuth $accountName $runTest $threadCount
+}
 
-combination=HNS-OAuth
-properties=("fs.azure.abfs.account.name" "fs.azure.test.namespace.enabled"
-"fs.azure.account.auth.type")
-values=("{account name}.dfs.core.windows.net" "true" "OAuth")
-generateconfigs
+runHNSSharedKeyTest()
+{
+  accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.hnsTestAccountName"]/value' $azureTestXmlPath)
+  properties=("fs.azure.account.auth.type")
+  values=("SharedKey")
+  triggerRun HNS-SharedKey $accountName  $runTest $threadCount
+}
 
-combination=HNS-SharedKey
-properties=("fs.azure.abfs.account.name" "fs.azure.test.namespace.enabled" "fs.azure.account.auth.type")
-values=("{account name}.dfs.core.windows.net" "true" "SharedKey")
-generateconfigs
+runNonHNSSharedKeyTest()
+{
+  accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.nonHnsTestAccountName"]/value' $azureTestXmlPath)
+  properties=("fs.azure.account.auth.type")
+  values=("SharedKey")
+  triggerRun NonHNS-SharedKey $accountName $runTest $threadCount
+}
 
-combination=NonHNS-SharedKey
-properties=("fs.azure.abfs.account.name" "fs.azure.test.namespace.enabled" "fs.azure.account.auth.type")
-values=("{account name}.dfs.core.windows.net" "false" "SharedKey")
-generateconfigs
+runAppendBlobHNSOAuthTest()
+{
+  accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.hnsTestAccountName"]/value' $azureTestXmlPath)
+  properties=("fs.azure.account.auth.type" "fs.azure.test.appendblob.enabled")
+  values=("OAuth" "true")
+  triggerRun AppendBlob-HNS-OAuth $accountName $runTest $threadCount
+}
 
+runTest=true
+echo 'Ensure below are complete before running script:'
+echo '1. Account specific settings file is present.'
+echo '   Copy accountName_settings.xml.template to accountName_settings.xml'
+echo '   where accountName in copied file name should be the test account name without domain'
+echo '   (accountName_settings.xml.template is present in src/test/resources/accountName_settings'
+echo '   folder. New account settings file to be added to same folder.)'
+echo '   Follow instructions in the template to populate settings correctly for the account'
+echo '2. In azure-test.xml, update properties fs.azure.hnsTestAccountName and fs.azure.nonHnsTestAccountName'
+echo '   where accountNames should be the test account names without domain'
+echo ' '
+echo ' '
+echo 'Choose mode:'
+echo '[Note - SET_ACTIVE_TEST_CONFIG will help activate the config for IDE/single test class runs]'
+select scriptMode in SET_ACTIVE_TEST_CONFIG RUN_TEST
+do
+  case $scriptMode in
+  SET_ACTIVE_TEST_CONFIG)
+    runTest=false
+    break
+    ;;
+  RUN_TEST)
+    runTest=true
+    read -p "Enter parallel test run thread count [default - 8]: " threadCount
+    threadCount=${threadCount:-8}
+    break
+    ;;
+  *) echo "ERROR: Invalid selection"
+      ;;
+   esac
+done
 
-### DO NOT EDIT THE LINES BELOW.
+## SECTION: COMBINATION DEFINITIONS AND TRIGGER
 
-runtests "$@"
+echo ' '
+echo 'Pick combination from the following:'
+select combo in HNS-OAuth HNS-SharedKey nonHNS-SharedKey AppendBlob-HNS-OAuth All Quit
+do
+   case $combo in
+      HNS-OAuth)
+         runHNSOAuthTest
+         break
+         ;;
+      HNS-SharedKey)
+         runHNSSharedKeyTest
+         break
+         ;;
+      nonHNS-SharedKey)
+         runNonHNSSharedKeyTest
+         break
+         ;;
+       AppendBlob-HNS-OAuth)
+         runAppendBlobHNSOAuthTest
+         break
+         ;;
+      All)
+        if [ $runTest == false ]
+        then
+          echo "ERROR: Invalid selection for SET_ACTIVE_TEST_CONFIG"
+          break
+        fi
+         runHNSOAuthTest
+         runHNSSharedKeyTest
+         runNonHNSSharedKeyTest
+         runAppendBlobHNSOAuthTest ## Keep this as the last run scenario always
+         break
+         ;;
+      Quit)
+         break
+         ;;
+      *) echo "ERROR: Invalid selection"
+      ;;
+   esac
+done
+
+if [ $runTest == true ]
+then
+  printAggregate
+fi

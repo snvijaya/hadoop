@@ -25,7 +25,7 @@ import org.apache.hadoop.security.AccessControlException;
 import org.apache.hadoop.security.UserGroupInformation;
 import org.apache.hadoop.security.authorize.AccessControlList;
 import org.apache.hadoop.thirdparty.com.google.common.annotations.VisibleForTesting;
-import org.apache.hadoop.thirdparty.com.google.common.collect.Sets;
+import org.apache.hadoop.util.Sets;
 import org.apache.hadoop.util.Time;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.Priority;
@@ -360,9 +360,8 @@ public abstract class AbstractCSQueue implements CSQueue {
 
     writeLock.lock();
     try {
-      if (isDynamicQueue() && getParent() instanceof ParentQueue) {
-        ((ParentQueue) getParent()).getAutoCreatedQueueTemplate()
-            .setTemplateEntriesForChild(configuration, getQueuePath());
+      if (isDynamicQueue()) {
+        setDynamicQueueProperties(configuration);
       }
       // get labels
       this.accessibleLabels =
@@ -475,6 +474,19 @@ public abstract class AbstractCSQueue implements CSQueue {
           ? defaultApplicationLifetime : maxApplicationLifetime;
     } finally {
       writeLock.unlock();
+    }
+  }
+
+  /**
+   * Set properties specific to dynamic queues.
+   * @param configuration configuration on which the properties are set
+   */
+  protected void setDynamicQueueProperties(
+      CapacitySchedulerConfiguration configuration) {
+    // Set properties from parent template
+    if (getParent() instanceof ParentQueue) {
+      ((ParentQueue) getParent()).getAutoCreatedQueueTemplate()
+          .setTemplateEntriesForChild(configuration, getQueuePath());
     }
   }
 

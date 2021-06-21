@@ -37,6 +37,7 @@ triggerRun()
   accountName=$2
   runTest=$3
   threadcount=$4
+  cleanUpTestContainers=$5
   accountConfigFile=$accountSettingsFolderName/$accountName$accountConfigFileSuffix
   rm -rf $combtestfile
   cat > $combtestfile << ENDOFFILE
@@ -44,16 +45,16 @@ triggerRun()
 
 </configuration>
 ENDOFFILE
-  propertiessize=${#properties[@]}
-  valuessize=${#values[@]}
+  propertiessize=${#PROPERTIES[@]}
+  valuessize=${#VALUES[@]}
   if [ "$propertiessize" -ne "$valuessize" ]; then
     echo "Exiting. Number of properties and values differ for $combination"
-    exit -1
+    exit 1
   fi
   for ((i = 0; i < propertiessize; i++)); do
-    key=${properties[$i]}
-    val=${values[$i]}
-    echo Combination specific property setting: [ key=$key , value=$val ]
+    key=${PROPERTIES[$i]}
+    val=${VALUES[$i]}
+    echo "Combination specific property setting: [ key="$key" , value="$val" ]"
     changeconf "$key" "$val"
   done
   formatxml "$combtestfile"
@@ -62,18 +63,23 @@ ENDOFFILE
   xmlstarlet ed -P -L -i /configuration/include -t attr -n xmlns -v "http://www.w3.org/2001/XInclude" $combtestfile
   formatxml $combtestfile
   echo ' '
-  echo Activated [$combtestfile] - for \"$accountName\" to run combination \"$combination\"
+  echo "Activated [$combtestfile] - for account: "$accountName" for combination "$combination""
 
-  if [ $runTest == true ]
+  if [ "$runTest" == true ]
   then
     STARTTIME=$(date +%s)
     testlogfilename="$testOutputLogFolder/Test-Logs-$combination.txt"
-    touch $testlogfilename
-    echo Running test for combination $combination on account $accountName [ThreadCount=$threadcount]
-    echo Result can be seen in $testlogfilename
-    mvn -T 1C -Dparallel-tests=abfs -Dscale -DtestsThreadCount=$threadcount verify >> "$testlogfilename" || true
+    touch "$testlogfilename"
+    echo "Running test for combination "$combination" on account "$accountName" [ThreadCount="$threadcount"]"
+    echo "Result can be seen in "$testlogfilename""
+    mvn -T 1C -Dparallel-tests=abfs -Dscale -DtestsThreadCount="$threadcount" verify >> "$testlogfilename" || true
     ENDTIME=$(date +%s)
     summary
+  fi
+
+  if [ "$cleanUpTestContainers" == true ]
+  then
+    mvn test -Dtest=org.apache.hadoop.fs.azurebfs.utils.CleanupTestContainers
   fi
 
 }
@@ -87,7 +93,7 @@ summary() {
   } >> "$aggregatedTestResult"
   printf "\n----- Test results -----\n"
   pcregrep -M "$testresultsregex" "$testlogfilename"
-  secondstaken=$(($ENDTIME - $STARTTIME))
+  secondstaken=$((ENDTIME - STARTTIME))
   mins=$((secondstaken / 60))
   secs=$((secondstaken % 60))
   printf "\nTime taken: %s mins %s secs.\n" "$mins" "$secs"
@@ -99,11 +105,11 @@ summary() {
 checkdependencies() {
   if ! [ "$(command -v pcregrep)" ]; then
     echo "Exiting. pcregrep is required to run the script."
-    exit -1
+    exit 1
   fi
   if ! [ "$(command -v xmlstarlet)" ]; then
     echo "Exiting. xmlstarlet is required to run the script."
-    exit -1
+    exit 1
   fi
 }
 
@@ -118,7 +124,7 @@ changeconf() {
   if ! xmlstarlet ed -P -L -s "/configuration/property[name='$1']" -t elem -n value -v "$2" "$combtestfile"
   then
     echo "Exiting. Changing config property failed."
-    exit -1
+    exit 1
   fi
 }
 
@@ -132,16 +138,16 @@ init() {
   fi
   starttime=$(date +"%Y-%m-%d_%H-%M-%S")
   testOutputLogFolder+=$starttime
-  mkdir -p $testOutputLogFolder
+  mkdir -p "$testOutputLogFolder"
   aggregatedTestResult="$testOutputLogFolder/Test-Results.txt"
  }
 
  printAggregate() {
    echo  :::: AGGREGATED TEST RESULT ::::
-   cat $aggregatedTestResult
+   cat "$aggregatedTestResult"
   fullRunEndTime=$(date +%s)
   fullRunTimeInSecs=$((fullRunEndTime - fullRunStartTime))
-  mins=$(($fullRunTimeInSecs / 60))
-  secs=$(($fullRunTimeInSecs % 60))
+  mins=$((fullRunTimeInSecs / 60))
+  secs=$((fullRunTimeInSecs % 60))
   printf "\nTime taken: %s mins %s secs.\n" "$mins" "$secs"
  }

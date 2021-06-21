@@ -629,24 +629,37 @@ Below are the pre-requiste steps to follow:
 **To run PR validation:** Running command
 * `dev-support/testrun-scripts/runtests.sh` will prompt as below:
 ```bash
-  Choose mode:
-  [Note - SET_ACTIVE_TEST_CONFIG will help activate the config for IDE/single test class runs]
-1) SET_ACTIVE_TEST_CONFIG
+Choose action:
+[Note - SET_ACTIVE_TEST_CONFIG will help activate the config for IDE/single test class runs]
+1) SET_ACTIVE_TEST_CONFIG	 3) CLEAN_UP_OLD_TEST_CONTAINERS
 2) RUN_TEST
+#? 2
 ```
 Enter 1: for setting active combination for IDE test run/single mvn test class runs.
 
 Enter 2: for choosing the combination to choose for mvn full test suite.
-On next prompt, current list of combinations to choose are provided:
-```bash
-#? 2
-Enter parallel test run thread count [default - 8]:
 
-Pick combination from the following:
+Enter 3: For clean-up of any abruptly ending test leaving auto generated test
+container on the account.
+
+On next prompt, current list of combinations to choose are provided.
+Sample for Run_TEST action:
+```bash
+#Enter parallel test run thread count [default - 8]: 4
+
+Set the active test combination to run the action:
 1) HNS-OAuth		 3) nonHNS-SharedKey	  5) All
 2) HNS-SharedKey	 4) AppendBlob-HNS-OAuth  6) Quit
+#? 1
+
+Combination specific property setting: [ key=fs.azure.account.auth.type , value=OAuth ]
+
+Activated [src/test/resources/abfs-combination-test-configs.xml] - for account: "storeaccountname" for combination "HNS-OAuth"
+Running test for combination HNS-OAuth on account storeaccountname[ThreadCount=4]
+Result can be seen in dev-support/testlogs/2021-06-21_22-28-22/Test-Logs-HNS-OAuth.txt
 ````
-Choose the needed option for test run.
+
+Provide the option for the action chosen first.
 
 **Test logs:** Test runs will create a folder within dev-support/testlogs to
 save the test logs. Folder name will be the test start timestamp. The mvn verify

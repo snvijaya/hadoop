@@ -20,6 +20,7 @@ set -eo pipefail
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# shellcheck source=dev-support/testrun-scripts/testsupport.sh
 . dev-support/testrun-scripts/testsupport.sh
 init
 
@@ -34,36 +35,37 @@ threadCount=8
 runHNSOAuthTest()
 {
   accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.hnsTestAccountName"]/value' $azureTestXmlPath)
-  properties=("fs.azure.account.auth.type")
-  values=("OAuth")
-  triggerRun HNS-OAuth $accountName $runTest $threadCount
+  PROPERTIES=("fs.azure.account.auth.type")
+  VALUES=("OAuth")
+  triggerRun "HNS-OAuth" "$accountName" $runTest $threadCount $cleanUpTestContainers
 }
 
 runHNSSharedKeyTest()
 {
   accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.hnsTestAccountName"]/value' $azureTestXmlPath)
-  properties=("fs.azure.account.auth.type")
-  values=("SharedKey")
-  triggerRun HNS-SharedKey $accountName  $runTest $threadCount
+  PROPERTIES=("fs.azure.account.auth.type")
+  VALUES=("SharedKey")
+  triggerRun "HNS-SharedKey" "$accountName"  $runTest $threadCount $cleanUpTestContainers
 }
 
 runNonHNSSharedKeyTest()
 {
   accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.nonHnsTestAccountName"]/value' $azureTestXmlPath)
-  properties=("fs.azure.account.auth.type")
-  values=("SharedKey")
-  triggerRun NonHNS-SharedKey $accountName $runTest $threadCount
+  PROPERTIES=("fs.azure.account.auth.type")
+  VALUES=("SharedKey")
+  triggerRun "NonHNS-SharedKey" "$accountName" $runTest $threadCount $cleanUpTestContainers
 }
 
 runAppendBlobHNSOAuthTest()
 {
   accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.hnsTestAccountName"]/value' $azureTestXmlPath)
-  properties=("fs.azure.account.auth.type" "fs.azure.test.appendblob.enabled")
-  values=("OAuth" "true")
-  triggerRun AppendBlob-HNS-OAuth $accountName $runTest $threadCount
+  PROPERTIES=("fs.azure.account.auth.type" "fs.azure.test.appendblob.enabled")
+  VALUES=("OAuth" "true")
+  triggerRun "AppendBlob-HNS-OAuth" "$accountName" $runTest $threadCount $cleanUpTestContainers
 }
 
-runTest=true
+runTest=false
+cleanUpTestContainers=false
 echo 'Ensure below are complete before running script:'
 echo '1. Account specific settings file is present.'
 echo '   Copy accountName_settings.xml.template to accountName_settings.xml'
@@ -75,9 +77,9 @@ echo '2. In azure-auth-keys.xml, update properties fs.azure.hnsTestAccountName a
 echo '   where accountNames should be the test account names without domain'
 echo ' '
 echo ' '
-echo 'Choose mode:'
+echo 'Choose action:'
 echo '[Note - SET_ACTIVE_TEST_CONFIG will help activate the config for IDE/single test class runs]'
-select scriptMode in SET_ACTIVE_TEST_CONFIG RUN_TEST
+select scriptMode in SET_ACTIVE_TEST_CONFIG RUN_TEST CLEAN_UP_OLD_TEST_CONTAINERS
 do
   case $scriptMode in
   SET_ACTIVE_TEST_CONFIG)
@@ -86,8 +88,13 @@ do
     ;;
   RUN_TEST)
     runTest=true
-    read -p "Enter parallel test run thread count [default - 8]: " threadCount
+    read -r -p "Enter parallel test run thread count [default - 8]: " threadCount
     threadCount=${threadCount:-8}
+    break
+    ;;
+  CLEAN_UP_OLD_TEST_CONTAINERS)
+    runTest=false
+    cleanUpTestContainers=true
     break
     ;;
   *) echo "ERROR: Invalid selection"
@@ -98,7 +105,7 @@ done
 ## SECTION: COMBINATION DEFINITIONS AND TRIGGER
 
 echo ' '
-echo 'Pick combination from the following:'
+echo 'Set the active test combination to run the action:'
 select combo in HNS-OAuth HNS-SharedKey nonHNS-SharedKey AppendBlob-HNS-OAuth All Quit
 do
    case $combo in
@@ -131,7 +138,7 @@ do
          break
          ;;
       Quit)
-         break
+         exit 0
          ;;
       *) echo "ERROR: Invalid selection"
       ;;

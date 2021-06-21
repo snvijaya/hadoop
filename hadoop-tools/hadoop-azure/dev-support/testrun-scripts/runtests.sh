@@ -71,7 +71,7 @@ echo '   where accountName in copied file name should be the test account name w
 echo '   (accountName_settings.xml.template is present in src/test/resources/accountName_settings'
 echo '   folder. New account settings file to be added to same folder.)'
 echo '   Follow instructions in the template to populate settings correctly for the account'
-echo '2. In azure-test.xml, update properties fs.azure.hnsTestAccountName and fs.azure.nonHnsTestAccountName'
+echo '2. In azure-auth-keys.xml, update properties fs.azure.hnsTestAccountName and fs.azure.nonHnsTestAccountName'
 echo '   where accountNames should be the test account names without domain'
 echo ' '
 echo ' '

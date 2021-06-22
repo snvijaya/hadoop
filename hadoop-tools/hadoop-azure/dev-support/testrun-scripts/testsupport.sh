@@ -54,7 +54,7 @@ ENDOFFILE
   for ((i = 0; i < propertiessize; i++)); do
     key=${PROPERTIES[$i]}
     val=${VALUES[$i]}
-    echo "Combination specific property setting: [ key="$key" , value="$val" ]"
+    echo "Combination specific property setting: [ key=$key , value=$val ]"
     changeconf "$key" "$val"
   done
   formatxml "$combtestfile"
@@ -63,15 +63,15 @@ ENDOFFILE
   xmlstarlet ed -P -L -i /configuration/include -t attr -n xmlns -v "http://www.w3.org/2001/XInclude" $combtestfile
   formatxml $combtestfile
   echo ' '
-  echo "Activated [$combtestfile] - for account: "$accountName" for combination "$combination""
+  echo "Activated [$combtestfile] - for account: $accountName for combination $combination"
 
   if [ "$runTest" == true ]
   then
     STARTTIME=$(date +%s)
     testlogfilename="$testOutputLogFolder/Test-Logs-$combination.txt"
     touch "$testlogfilename"
-    echo "Running test for combination "$combination" on account "$accountName" [ThreadCount="$threadcount"]"
-    echo "Result can be seen in "$testlogfilename""
+    echo "Running test for combination $combination on account $accountName [ThreadCount=$threadcount]"
+    echo "Result can be seen in $testlogfilename"
     mvn -T 1C -Dparallel-tests=abfs -Dscale -DtestsThreadCount="$threadcount" verify >> "$testlogfilename" || true
     ENDTIME=$(date +%s)
     summary
@@ -134,7 +134,7 @@ init() {
   then
     echo ""
     echo "Exiting. Build failed."
-    exit -1
+    exit 1
   fi
   starttime=$(date +"%Y-%m-%d_%H-%M-%S")
   testOutputLogFolder+=$starttime

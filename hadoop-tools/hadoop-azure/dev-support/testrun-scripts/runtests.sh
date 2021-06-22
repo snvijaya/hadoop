@@ -20,7 +20,8 @@ set -eo pipefail
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# shellcheck source=dev-support/testrun-scripts/testsupport.sh
+# shellcheck disable=SC2086
+# shellcheck disable=SC109
 . dev-support/testrun-scripts/testsupport.sh
 init
 

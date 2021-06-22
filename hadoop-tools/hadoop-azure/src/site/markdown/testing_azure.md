@@ -631,7 +631,7 @@ Below are the pre-requiste steps to follow:
 ```bash
 Choose action:
 [Note - SET_ACTIVE_TEST_CONFIG will help activate the config for IDE/single test class runs]
-1) SET_ACTIVE_TEST_CONFIG	 3) CLEAN_UP_OLD_TEST_CONTAINERS
+1) SET_ACTIVE_TEST_CONFIG  3) CLEAN_UP_OLD_TEST_CONTAINERS
 2) RUN_TEST
 #? 2
 ```
@@ -648,8 +648,8 @@ Sample for Run_TEST action:
 #Enter parallel test run thread count [default - 8]: 4
 
 Set the active test combination to run the action:
-1) HNS-OAuth		 3) nonHNS-SharedKey	  5) All
-2) HNS-SharedKey	 4) AppendBlob-HNS-OAuth  6) Quit
+1) HNS-OAuth     3) nonHNS-SharedKey      5) All
+2) HNS-SharedKey 4) AppendBlob-HNS-OAuth  6) Quit
 #? 1
 
 Combination specific property setting: [ key=fs.azure.account.auth.type , value=OAuth ]

@@ -20,8 +20,7 @@ set -eo pipefail
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# shellcheck disable=SC2086
-# shellcheck disable=SC109
+# shellcheck disable=SC1091
 . dev-support/testrun-scripts/testsupport.sh
 init
 
@@ -38,7 +37,7 @@ runHNSOAuthTest()
   accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.hnsTestAccountName"]/value' $azureTestXmlPath)
   PROPERTIES=("fs.azure.account.auth.type")
   VALUES=("OAuth")
-  triggerRun "HNS-OAuth" "$accountName" $runTest $threadCount $cleanUpTestContainers
+  triggerRun "HNS-OAuth" "$accountName" "$runTest" $threadCount "$cleanUpTestContainers"
 }
 
 runHNSSharedKeyTest()
@@ -46,7 +45,7 @@ runHNSSharedKeyTest()
   accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.hnsTestAccountName"]/value' $azureTestXmlPath)
   PROPERTIES=("fs.azure.account.auth.type")
   VALUES=("SharedKey")
-  triggerRun "HNS-SharedKey" "$accountName"  $runTest $threadCount $cleanUpTestContainers
+  triggerRun "HNS-SharedKey" "$accountName"  "$runTest" $threadCount "$cleanUpTestContainers"
 }
 
 runNonHNSSharedKeyTest()
@@ -54,7 +53,7 @@ runNonHNSSharedKeyTest()
   accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.nonHnsTestAccountName"]/value' $azureTestXmlPath)
   PROPERTIES=("fs.azure.account.auth.type")
   VALUES=("SharedKey")
-  triggerRun "NonHNS-SharedKey" "$accountName" $runTest $threadCount $cleanUpTestContainers
+  triggerRun "NonHNS-SharedKey" "$accountName" "$runTest" $threadCount "$cleanUpTestContainers"
 }
 
 runAppendBlobHNSOAuthTest()
@@ -62,7 +61,7 @@ runAppendBlobHNSOAuthTest()
   accountName=$(xmlstarlet sel -t -v '//property[name = "fs.azure.hnsTestAccountName"]/value' $azureTestXmlPath)
   PROPERTIES=("fs.azure.account.auth.type" "fs.azure.test.appendblob.enabled")
   VALUES=("OAuth" "true")
-  triggerRun "AppendBlob-HNS-OAuth" "$accountName" $runTest $threadCount $cleanUpTestContainers
+  triggerRun "AppendBlob-HNS-OAuth" "$accountName" "$runTest" $threadCount "$cleanUpTestContainers"
 }
 
 runTest=false

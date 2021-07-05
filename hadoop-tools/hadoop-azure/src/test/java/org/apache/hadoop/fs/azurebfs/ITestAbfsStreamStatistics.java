@@ -24,14 +24,13 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.azure.storage.fastpath.MockFastpathConnection;
-
-import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.fs.azurebfs.services.MockAbfsInputStream;
+import org.apache.hadoop.fs.azurebfs.utils.MockFastpathConnection;
+import org.apache.hadoop.io.IOUtils;
 
 import static org.apache.hadoop.fs.azurebfs.constants.ConfigurationKeys.FS_AZURE_READ_AHEAD_QUEUE_DEPTH;
 
@@ -46,13 +45,12 @@ public class ITestAbfsStreamStatistics extends AbstractAbfsIntegrationTest {
   private static final Logger LOG =
       LoggerFactory.getLogger(ITestAbfsStreamStatistics.class);
 
-  private static final int LARGE_NUMBER_OF_OPS = 999999;
+  private static final int LARGE_NUMBER_OF_OPS = 99;
 
   /***
    * Testing {@code incrementReadOps()} in class {@code AbfsInputStream} and
    * {@code incrementWriteOps()} in class {@code AbfsOutputStream}.
    *
-   * @throws Exception
    */
   @Test
   public void testMockFastpathAbfsStreamOps() throws Exception {
@@ -140,7 +138,8 @@ public class ITestAbfsStreamStatistics extends AbstractAbfsIntegrationTest {
     //Validating if content is being written in the smallOperationsFile
     if (isMockFastpathTest) {
       assertTrue("Mismatch in content validation",
-          validateContent((MockAbfsInputStream) getMockAbfsInputStream(fs, smallOperationsFile),
+          validateContent((MockAbfsInputStream) getMockAbfsInputStream(fs,
+              smallOperationsFile),
               testReadWriteOps.getBytes()));
     } else {
       assertTrue("Mismatch in content validation",
@@ -201,7 +200,8 @@ public class ITestAbfsStreamStatistics extends AbstractAbfsIntegrationTest {
     //Validating if content is being written in largeOperationsFile
     if (isMockFastpathTest) {
       assertTrue("Mismatch in content validation",
-          validateContent((MockAbfsInputStream) getMockAbfsInputStream(fs, largeOperationsFile),
+          validateContent((MockAbfsInputStream) getMockAbfsInputStream(fs,
+              largeOperationsFile),
               largeOperationsValidationString.toString().getBytes()));
     } else {
       assertTrue("Mismatch in content validation",

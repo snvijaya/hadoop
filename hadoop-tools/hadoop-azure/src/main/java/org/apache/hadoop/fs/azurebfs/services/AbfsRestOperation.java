@@ -19,15 +19,16 @@
 package org.apache.hadoop.fs.azurebfs.services;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.UnknownHostException;
 import java.util.List;
 
-import org.apache.hadoop.thirdparty.com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.hadoop.thirdparty.com.google.common.annotations.VisibleForTesting;
 import org.apache.hadoop.fs.azurebfs.AbfsStatistic;
 import org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants;
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AbfsFastpathException;
@@ -36,15 +37,14 @@ import org.apache.hadoop.fs.azurebfs.contracts.exceptions.AzureBlobFileSystemExc
 import org.apache.hadoop.fs.azurebfs.contracts.exceptions.InvalidAbfsRestOperationException;
 import org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations;
 import org.apache.hadoop.fs.azurebfs.contracts.services.ListResultSchema;
-
-import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.FASTPATH_CORR_INDICATOR;
-import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.FASTPATH_CONN_REST_FALLBACK_CORR_INDICATOR;
-import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.FASTPATH_REQ_REST_FALLBACK_CORR_INDICATOR;
+import org.apache.hadoop.fs.azurebfs.utils.TracingContext;
+import org.apache.hadoop.fs.statistics.impl.IOStatisticsBinding;
 
 /**
  * The AbfsRestOperation for Rest AbfsClient.
  */
 public class AbfsRestOperation {
+  // The type of the REST operation (Append, ReadFile, etc)
   // The type of the REST operation (Append, ReadFile, etc)
   protected final AbfsRestOperationType operationType;
   // Blob FS client, which has the credentials, retry policy, and logs.
@@ -75,8 +75,6 @@ public class AbfsRestOperation {
   private AbfsHttpOperation result;
   private AbfsCounters abfsCounters;
   protected String fastpathFileHandle;
-  private String fastpathCorrIndicator = "";
-  private FastpathStatus fastpathReqStatus;
 
   public AbfsHttpOperation getResult() {
     return result;
@@ -103,7 +101,9 @@ public class AbfsRestOperation {
     return sasToken;
   }
 
-  public ListResultSchema getListResultSchema() { return ((AbfsHttpConnection)this.result).getListResultSchema(); }
+  public ListResultSchema getListResultSchema() {
+    return ((AbfsHttpConnection)this.result).getListResultSchema();
+  }
 
   String getFastpathFileHandle() {
     return ((AbfsFastpathConnection) this.result).getFastpathFileHandle();
@@ -122,7 +122,7 @@ public class AbfsRestOperation {
                     final String method,
                     final URL url,
                     final List<AbfsHttpHeader> requestHeaders) {
-    this(operationType, client, method, url, requestHeaders, null, null);
+    this(operationType, client, method, url, requestHeaders, null);
   }
 
   /**
@@ -135,11 +135,11 @@ public class AbfsRestOperation {
    * @param sasToken A sasToken for optional re-use by AbfsInputStream/AbfsOutputStream.
    */
   AbfsRestOperation(final AbfsRestOperationType operationType,
-      final AbfsClient client,
-      final String method,
-      final URL url,
-      final List<AbfsHttpHeader> requestHeaders,
-      final String sasToken) {
+                    final AbfsClient client,
+                    final String method,
+                    final URL url,
+                    final List<AbfsHttpHeader> requestHeaders,
+                    final String sasToken) {
     this(operationType, client, method, url, requestHeaders, sasToken, null);
   }
 
@@ -154,81 +154,51 @@ public class AbfsRestOperation {
    * @param fastpathFileHandle Fastpath File handle
    */
   AbfsRestOperation(final AbfsRestOperationType operationType,
-                    final AbfsClient client,
-                    final String method,
-                    final URL url,
-                    final List<AbfsHttpHeader> requestHeaders,
-                    final String sasToken,
-                    final String fastpathFileHandle) {
+      final AbfsClient client,
+      final String method,
+      final URL url,
+      final List<AbfsHttpHeader> requestHeaders,
+      final String sasToken,
+      final String fastpathFileHandle) {
     this.operationType = operationType;
     this.client = client;
     this.method = method;
     this.url = url;
     this.requestHeaders = requestHeaders;
     this.hasRequestBody = (AbfsHttpConstants.HTTP_METHOD_PUT.equals(method)
-            || AbfsHttpConstants.HTTP_METHOD_POST.equals(method)
-            || AbfsHttpConstants.HTTP_METHOD_PATCH.equals(method));
+        || AbfsHttpConstants.HTTP_METHOD_POST.equals(method)
+        || AbfsHttpConstants.HTTP_METHOD_PATCH.equals(method));
     this.sasToken = sasToken;
     this.fastpathFileHandle = fastpathFileHandle;
     this.abfsCounters = client.getAbfsCounters();
   }
 
   /**
-   * Updates instance with IO request parameters
+   * Initializes a new REST operation.
    *
-   * @param buffer For uploads, this is the request entity body.  For downloads,
-   *               this will hold the response entity body.
-   * @param bufferOffset An offset into the buffer where the data beings.
-   * @param bufferLength The length of the data in the buffer.
+   * @param operationType The type of the REST operation (Append, ReadFile, etc).
+   * @param client The Blob FS client.
+   * @param method The HTTP method (PUT, PATCH, POST, GET, HEAD, or DELETE).
+   * @param url The full URL including query string parameters.
+   * @param requestHeaders The HTTP request headers.
+   * @param ioDataParams For uploads, this holds details of buffer which holds
+   *               request entity body. For downloads, this holds details of
+   *               buffer which hold the response entity body.
+   * @param sasToken A sasToken for optional re-use by AbfsInputStream/AbfsOutputStream.
    */
-  public void updateIOReqParams(byte[] buffer,
-      int bufferOffset,
-      int bufferLength) {
-    this.buffer = buffer;
-    this.bufferOffset = bufferOffset;
-    this.bufferLength = bufferLength;
+  AbfsRestOperation(AbfsRestOperationType operationType,
+                    AbfsClient client,
+                    String method,
+                    URL url,
+                    List<AbfsHttpHeader> requestHeaders,
+                    AbfsRestIODataParameters ioDataParams,
+                    String sasToken) {
+    this(operationType, client, method, url, requestHeaders, sasToken);
+    this.buffer = ioDataParams.getBuffer();
+    this.bufferOffset = ioDataParams.getBufferOffset();
+    this.bufferLength = ioDataParams.getBufferLength();
+    this.fastpathFileHandle = ioDataParams.getFastpathFileHandle();
     this.abfsCounters = client.getAbfsCounters();
-  }
-
-  public void setFastpathRequestStatus(FastpathStatus status) {
-    this.fastpathReqStatus = status;
-    updateCorrelationIdIndicator();
-  }
-
-  // TODO  once clientCorrId change is ready, pass this through tracing context
-  private void updateCorrelationIdIndicator() {
-    switch(this.fastpathReqStatus) {
-    case FASTPATH:
-      fastpathCorrIndicator = FASTPATH_CORR_INDICATOR;
-        break;
-    case REQ_FAIL_REST_FALLBACK:
-      fastpathCorrIndicator = FASTPATH_REQ_REST_FALLBACK_CORR_INDICATOR;
-      break;
-    case CONN_FAIL_REST_FALLBACK:
-      fastpathCorrIndicator = FASTPATH_CONN_REST_FALLBACK_CORR_INDICATOR;
-      break;
-    }
-  }
-
-  public FastpathStatus getFastpathRequestStatus() {
-    return fastpathReqStatus;
-  }
-
-  /**
-   * Updates instance with IO request parameters
-   *
-   * @param buffer For uploads, this is the request entity body.  For downloads,
-   *               this will hold the response entity body.
-   * @param bufferOffset An offset into the buffer where the data beings.
-   * @param bufferLength The length of the data in the buffer.
-   * @param fastpathFileHandle handle to Fastpath File
-   */
-  public void updateIOReqParams(byte[] buffer,
-      int bufferOffset,
-      int bufferLength,
-      String fastpathFileHandle) {
-    updateIOReqParams(buffer, bufferOffset, bufferLength);
-    this.fastpathFileHandle = fastpathFileHandle;
   }
 
   public boolean isAFastpathRequest() {
@@ -243,11 +213,32 @@ public class AbfsRestOperation {
   }
 
   /**
+   * Execute a AbfsRestOperation. Track the Duration of a request if
+   * abfsCounters isn't null.
+   * @param tracingContext TracingContext instance to track correlation IDs
+   */
+  public void execute(TracingContext tracingContext)
+      throws AzureBlobFileSystemException {
+
+    try {
+      IOStatisticsBinding.trackDurationOfInvocation(abfsCounters,
+          AbfsStatistic.getStatNameFromHttpCall(method),
+          () -> completeExecute(tracingContext));
+    } catch (AzureBlobFileSystemException aze) {
+      throw aze;
+    } catch (IOException e) {
+      throw new UncheckedIOException("Error while tracking Duration of an "
+          + "AbfsRestOperation call", e);
+    }
+  }
+
+  /**
    * Executes the REST operation with retry, by issuing one or more
    * HTTP operations.
+   * @param tracingContext TracingContext instance to track correlation IDs
    */
-   @VisibleForTesting
-   public void execute() throws AzureBlobFileSystemException {
+  private void completeExecute(TracingContext tracingContext)
+      throws AzureBlobFileSystemException {
     // see if we have latency reports from the previous requests
     String latencyHeader = this.client.getAbfsPerfTracker().getClientLatency();
     if (latencyHeader != null && !latencyHeader.isEmpty()) {
@@ -258,9 +249,10 @@ public class AbfsRestOperation {
 
     retryCount = 0;
     LOG.debug("First execution of REST operation - {}", operationType);
-    while (!executeHttpOperation(retryCount)) {
+    while (!executeHttpOperation(retryCount, tracingContext)) {
       try {
         ++retryCount;
+        tracingContext.setRetryCount(retryCount);
         LOG.debug("Retrying REST operation {}. RetryCount = {}",
             operationType, retryCount);
         Thread.sleep(client.getRetryPolicy().getRetryInterval(retryCount));
@@ -282,20 +274,19 @@ public class AbfsRestOperation {
    * fails, there may be a retry.  The retryCount is incremented with each
    * attempt.
    */
-  private boolean executeHttpOperation(final int retryCount) throws AzureBlobFileSystemException {
+  private boolean executeHttpOperation(final int retryCount,
+    TracingContext tracingContext) throws AzureBlobFileSystemException {
     AbfsHttpOperation httpOperation = null;
     try {
-      // initialize the HTTP request, add auth info  and open the connection
       switch(client.getAuthType()) {
         case Custom:
         case OAuth:
           LOG.debug("Authenticating request with OAuth2 access token");
           if (isAFastpathRequest()) {
             httpOperation = getFastpathConnection();
-            this.fastpathCorrIndicator = FASTPATH_CORR_INDICATOR;
           } else {
             httpOperation = new AbfsHttpConnection(url, method, requestHeaders);
-            ((AbfsHttpConnection) httpOperation).setHeader(
+            httpOperation.setHeader(
                 HttpHeaderConfigurations.AUTHORIZATION,
                 client.getAccessToken());
           }
@@ -316,7 +307,7 @@ public class AbfsRestOperation {
           break;
       }
 
-      httpOperation.updateClientReqIdWithConnStatusIndicator(fastpathCorrIndicator);
+      tracingContext.constructHeader(httpOperation);
 
       incrementCounter(AbfsStatistic.CONNECTIONS_MADE, 1);
     } catch (IOException e) {
@@ -331,7 +322,7 @@ public class AbfsRestOperation {
           httpOperation.getRequestHeaders());
       AbfsClientThrottlingIntercept.sendingRequest(operationType, abfsCounters);
 
-      if (hasRequestBody) {
+      if (hasRequestBody && !isAFastpathRequest()) {
         // HttpUrlConnection requires
         ((AbfsHttpConnection)httpOperation).sendRequest(buffer, bufferOffset, bufferLength);
         incrementCounter(AbfsStatistic.SEND_REQUESTS, 1);
@@ -346,6 +337,8 @@ public class AbfsRestOperation {
           && httpOperation.getStatusCode() <= HttpURLConnection.HTTP_PARTIAL) {
         incrementCounter(AbfsStatistic.BYTES_RECEIVED,
             httpOperation.getBytesReceived());
+      } else if (httpOperation.getStatusCode() == HttpURLConnection.HTTP_UNAVAILABLE) {
+        incrementCounter(AbfsStatistic.SERVER_UNAVAILABLE, 1);
       }
     } catch (UnknownHostException ex) {
       String hostname = null;
@@ -362,7 +355,7 @@ public class AbfsRestOperation {
     } catch (IOException ex) {
       if (LOG.isDebugEnabled()) {
         if (httpOperation == null) {
-          LOG.debug("HttpRequestFailure: " + method + "," + url, ex);
+          LOG.debug("HttpRequestFailure: {} - {}: {}", method, url, ex);
         } else {
           LOG.debug("HttpRequestFailure: {}, {}", httpOperation.toString(), ex);
         }

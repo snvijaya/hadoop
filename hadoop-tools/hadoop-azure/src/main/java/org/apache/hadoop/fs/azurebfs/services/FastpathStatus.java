@@ -18,31 +18,9 @@
 
 package org.apache.hadoop.fs.azurebfs.services;
 
-/**
- * The REST operation type (Read, Append, Other ).
- */
-public enum AbfsRestOperationType {
-    CreateFileSystem,
-    GetFileSystemProperties,
-    SetFileSystemProperties,
-    ListPaths,
-    DeleteFileSystem,
-    CreatePath,
-    RenamePath,
-    GetAcl,
-    GetPathProperties,
-    GetPathStatus,
-    SetAcl,
-    SetOwner,
-    SetPathProperties,
-    SetPermissions,
-    Append,
-    Flush,
-    ReadFile,
-    DeletePath,
-    CheckAccess,
-    LeasePath,
-    FastpathOpen,
-    FastpathRead,
-    FastpathClose
+public enum FastpathStatus {
+  FASTPATH_DISABLED,
+  FASTPATH,
+  REQ_FAIL_REST_FALLBACK,
+  CONN_FAIL_REST_FALLBACK,
 }

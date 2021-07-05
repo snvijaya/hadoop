@@ -703,11 +703,23 @@ public class AzureBlobFileSystemStore implements Closeable, ListingSupport {
       perfInfo.registerSuccess(true);
 
       // Add statistics for InputStream
-      return new AbfsInputStream(client, statistics,
+      return createAbfsInputStreamInstance(client, statistics,
               relativePath, contentLength,
               populateAbfsInputStreamContext(options),
               eTag, tracingContext);
     }
+  }
+
+  @VisibleForTesting
+  protected AbfsInputStream createAbfsInputStreamInstance(final AbfsClient client,
+      final FileSystem.Statistics statistics,
+      final String path,
+      final long contentLength,
+      final AbfsInputStreamContext abfsInputStreamContext,
+      final String eTag,
+      TracingContext tracingContext) {
+    return new AbfsInputStream(client, statistics, path, contentLength,
+        abfsInputStreamContext, eTag, tracingContext);
   }
 
   private AbfsInputStreamContext populateAbfsInputStreamContext(
@@ -726,6 +738,7 @@ public class AzureBlobFileSystemStore implements Closeable, ListingSupport {
                 abfsConfiguration.shouldReadBufferSizeAlways())
             .withReadAheadBlockSize(abfsConfiguration.getReadAheadBlockSize())
             .withBufferedPreadDisabled(bufferedPreadDisabled)
+            .withFastpathEnabledState(abfsConfiguration.isFastpathEnabled())
             .build();
   }
 
@@ -990,7 +1003,7 @@ public class AzureBlobFileSystemStore implements Closeable, ListingSupport {
             tracingContext);
         perfInfo.registerResult(op.getResult());
         continuation = op.getResult().getResponseHeader(HttpHeaderConfigurations.X_MS_CONTINUATION);
-        ListResultSchema retrievedSchema = op.getResult().getListResultSchema();
+        ListResultSchema retrievedSchema = op.getListResultSchema();
         if (retrievedSchema == null) {
           throw new AbfsRestOperationException(
                   AzureServiceErrorCode.PATH_NOT_FOUND.getStatusCode(),
@@ -1762,5 +1775,10 @@ public class AzureBlobFileSystemStore implements Closeable, ListingSupport {
       }
     }
     return true;
+  }
+
+  @VisibleForTesting
+  AbfsCounters getAbfsCounters() {
+    return this.abfsCounters;
   }
 }

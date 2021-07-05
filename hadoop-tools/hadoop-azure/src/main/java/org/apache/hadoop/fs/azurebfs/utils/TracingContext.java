@@ -27,8 +27,12 @@ import org.apache.hadoop.fs.azurebfs.constants.FSOperationType;
 import org.apache.hadoop.fs.azurebfs.constants.HttpHeaderConfigurations;
 import org.apache.hadoop.fs.azurebfs.services.AbfsClient;
 import org.apache.hadoop.fs.azurebfs.services.AbfsHttpOperation;
+import org.apache.hadoop.fs.azurebfs.services.FastpathStatus;
 
 import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.EMPTY_STRING;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.FASTPATH_CORR_INDICATOR;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.FASTPATH_CONN_REST_FALLBACK_CORR_INDICATOR;
+import static org.apache.hadoop.fs.azurebfs.constants.AbfsHttpConstants.FASTPATH_REQ_REST_FALLBACK_CORR_INDICATOR;
 
 /**
  * The TracingContext class to correlate Store requests using unique
@@ -62,6 +66,7 @@ public class TracingContext {
   private Listener listener = null;  // null except when testing
   //final concatenated ID list set into x-ms-client-request-id header
   private String header = EMPTY_STRING;
+  private FastpathStatus fastpathStatus = FastpathStatus.FASTPATH_DISABLED;
 
   private static final Logger LOG = LoggerFactory.getLogger(AbfsClient.class);
   public static final int MAX_CLIENT_CORRELATION_ID_LENGTH = 72;
@@ -109,6 +114,7 @@ public class TracingContext {
     this.retryCount = 0;
     this.primaryRequestId = originalTracingContext.primaryRequestId;
     this.format = originalTracingContext.format;
+    this.fastpathStatus = originalTracingContext.fastpathStatus;
     if (originalTracingContext.listener != null) {
       this.listener = originalTracingContext.listener.getClone();
     }
@@ -143,6 +149,10 @@ public class TracingContext {
     this.retryCount = retryCount;
   }
 
+  public void setFastpathStatus(FastpathStatus fastpathStatus) {
+    this.fastpathStatus = fastpathStatus;
+  }
+
   public void setListener(Listener listener) {
     this.listener = listener;
   }
@@ -160,7 +170,7 @@ public class TracingContext {
       header =
           clientCorrelationID + ":" + clientRequestId + ":" + fileSystemID + ":"
               + primaryRequestId + ":" + streamID + ":" + opType + ":"
-              + retryCount;
+              + retryCount + ":" + getFastpathStatusIndicator(fastpathStatus);
       break;
     case TWO_ID_FORMAT:
       header = clientCorrelationID + ":" + clientRequestId;
@@ -171,7 +181,7 @@ public class TracingContext {
     if (listener != null) { //for testing
       listener.callTracingHeaderValidator(header, format);
     }
-    httpOperation.setRequestProperty(HttpHeaderConfigurations.X_MS_CLIENT_REQUEST_ID, header);
+    httpOperation.setHeader(HttpHeaderConfigurations.X_MS_CLIENT_REQUEST_ID, header);
   }
 
   /**
@@ -182,4 +192,18 @@ public class TracingContext {
     return header;
   }
 
+  public FastpathStatus getFastpathStatus() { return fastpathStatus; }
+
+  private static String getFastpathStatusIndicator(FastpathStatus fastpathStatus) {
+    switch(fastpathStatus) {
+    case FASTPATH:
+     return FASTPATH_CORR_INDICATOR;
+    case REQ_FAIL_REST_FALLBACK:
+      return FASTPATH_REQ_REST_FALLBACK_CORR_INDICATOR;
+    case CONN_FAIL_REST_FALLBACK:
+      return FASTPATH_CONN_REST_FALLBACK_CORR_INDICATOR;
+    }
+
+    return EMPTY_STRING;
+  }
 }

@@ -20,7 +20,11 @@ package org.apache.hadoop.fs.azurebfs.services;
 
 import java.io.IOException;
 
+import org.junit.After;
+import org.junit.Assume;
 import org.junit.Test;
+
+import org.apache.hadoop.fs.azurebfs.utils.MockFastpathConnection;
 
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Path;
@@ -42,17 +46,45 @@ public class ITestAbfsUnbuffer extends AbstractAbfsIntegrationTest {
   @Override
   public void setup() throws Exception {
     super.setup();
-    dest = path("ITestAbfsUnbuffer");
+  }
 
-    byte[] data = ContractTestUtils.dataset(16, 'a', 26);
-    ContractTestUtils.writeDataset(getFileSystem(), dest, data, data.length,
-            16, true);
+  @After
+  public void tearDown() throws Exception {
+    super.teardown();
+  }
+
+  @Test
+  public void testMockFastpathUnbuffer() throws IOException {
+    // Run mock test only if feature is set to off
+    Assume.assumeFalse(getDefaultFastpathFeatureStatus());
+    writeData(true);
+    testUnbuffer(true);
+    MockFastpathConnection.unregisterAppend(dest.getName());
   }
 
   @Test
   public void testUnbuffer() throws IOException {
+    writeData(false);
+    testUnbuffer(false);
+  }
+
+  public void writeData(boolean isMockFastpathTest) throws IOException {
+    dest = path("ITestAbfsUnbuffer");
+
+    byte[] data = ContractTestUtils.dataset(16, 'a', 26);
+    ContractTestUtils
+        .writeDataset(getFileSystem(), dest, data, data.length, 16, true);
+    if (isMockFastpathTest) {
+      MockFastpathConnection
+          .registerAppend(data.length, dest.getName(), data, 0, data.length);
+    }
+  }
+
+  public void testUnbuffer(boolean isMockFastpathTest) throws IOException {
     // Open file, read half the data, and then call unbuffer
-    try (FSDataInputStream inputStream = getFileSystem().open(dest)) {
+    try (FSDataInputStream inputStream = isMockFastpathTest
+        ? openMockAbfsInputStream(getFileSystem(), dest)
+        : getFileSystem().open(dest)) {
       assertTrue("unexpected stream type "
               + inputStream.getWrappedStream().getClass().getSimpleName(),
               inputStream.getWrappedStream() instanceof AbfsInputStream);
